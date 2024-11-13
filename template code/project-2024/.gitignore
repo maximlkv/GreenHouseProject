@@ -1,0 +1,45 @@
+# Compiled class files
+*.class
+
+# Maven target directory and local environment settings
+target/
+.mvn/
+!/.mvn/wrapper/maven-wrapper.jar
+settings.xml
+
+# Dependency management directory (if using a repo manager like Artifactory or Nexus)
+repository/
+
+# IDE-specific files
+.idea/
+*.iml
+*.ipr
+*.iws
+.classpath
+.project
+.settings/
+out/
+
+# NetBeans specific files
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+# Visual Studio Code settings
+.vscode/
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Logs and temporary files
+*.log
+*.out
+*.tmp
+
+# Build artifacts
+*.war
+*.jar
+*.ear
