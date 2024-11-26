@@ -1,22 +1,36 @@
 package no.ntnu.server;
 
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.Map;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.io.BufferedReader;
+import no.ntnu.tools.Logger;
+
 
 public class Server {
 
     public static int TCP_PORT = 1238;
-    public static final int NUMBER_OF_CHANNELS = 20;
-    private boolean isOn = false;
-    private int activeChannel = 1;
 
     private ServerSocket serverSocket;
     private boolean running;
 
+    // Map for nodes which haven't been paired yet. each control node will later be paired with a sensor/actuator node.
+    private final Map<Integer, Socket> controlNodes = new ConcurrentHashMap<>();
+    private final Map<Integer, Socket> sensorNodes = new ConcurrentHashMap<>();
+
+    // thread pool for handling newly connected clients
+    private final ExecutorService threadPool = Executors.newFixedThreadPool(10);
+
     public static void main(String[] args) {
         if (args.length == 1) {
-            TCP_PORT = Integer.valueOf(args[0]);
+            TCP_PORT = Integer.parseInt(args[0]);
         }
         Server server = new Server();
         server.run();
@@ -25,13 +39,14 @@ public class Server {
     private void run() {
         if (openListeningSocket()) {
             running = true;
+            System.out.println("Server started...");
             while (running) {
                 Socket clientSocket = acceptNextClient();
-                NodeHandler nodeHandler = new NodeHandler(this, clientSocket);
-                nodeHandler.run();
+                if(clientSocket != null) {
+                    threadPool.execute(() -> handleClient(clientSocket));
+                }
             }
         }
-
         System.out.println("Server exiting...");
     }
 
@@ -62,53 +77,69 @@ public class Server {
         return clientSocket;
     }
 
-    public int getActiveChannel() {
-        return activeChannel;
-    }
+    private void handleClient(Socket clientSocket) {
+        try {
+            
+            // receive Node type and ID from newly connected Node and place it according map to wait for pairing
 
-    private void setActiveChannel(int channel) {
-        activeChannel = channel;
-    }
+            BufferedReader reader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+            String handshakeMessage = reader.readLine().trim(); // Expected format: NODE_TYPE:ID
 
-    private int getAvailableChannels() {
-        return NUMBER_OF_CHANNELS;
-    }
+            if (handshakeMessage.trim().isEmpty()) {
+                Logger.error("Received empty handshake message. Closing client socket.");
+                clientSocket.close();
+                return;
+            }
 
-    /**
-     * Returns true if channel is greater than 1 but lower than NUMBER_OF_CHANNELS
-     * @param channel
-     * @return
-     */
-    private boolean isInChannelsRange(int channel) {
-        return channel >= 1 && channel <= getAvailableChannels();
-    }
+            String[] handshakeParts = handshakeMessage.split(":");
+            if(handshakeParts.length != 2) {
+                Logger.error("Invalid Handshake format. Closing client socket");
+                clientSocket.close();
+            }
+            String nodeType = handshakeParts[0];
+            int nodeID;
+            try {
+                nodeID = Integer.parseInt(handshakeParts[1]);
+            } catch (NumberFormatException e) {
+                System.err.println("Invalid Node ID. Closing client socket.");
+                clientSocket.close();
+                return;
+            }
+            System.out.println("New node connected. Type: " + nodeType + ", ID: " +  nodeID);
 
-    public boolean getIsOn() {
-        return isOn;
-    }
+            if(nodeType.equals("CONTROL")) {
+                controlNodes.put(nodeID, clientSocket);
+            } else if(nodeType.equals("SENSOR")) {
+                sensorNodes.put(nodeID, clientSocket);
+            } else {
+                System.err.println("Invalid node type. Closing connection.");
+                clientSocket.close();
+                return;
+            }
 
-    public void setIsOn(boolean isOn) {
-        this.isOn = isOn;
-    }
+            // pair control and sensor/actuator nodes if there are any unpaired nodes waiting. afterwards remove them from the maps.
+            
+            if(!controlNodes.isEmpty() && !sensorNodes.isEmpty()) {
 
-    public void setChannelUp() {
-        int currentChannel = getActiveChannel();
-        int newChannel = currentChannel +1;
-        if (isInChannelsRange(newChannel)) {
-            setActiveChannel(newChannel);
-        }else{
-            setActiveChannel(1); //Default rule. If if out of range, we return 1 as next channel.
+                Integer controlNodeID = controlNodes.keySet().iterator().next();
+                Integer sensorNodeID = sensorNodes.keySet().iterator().next();
+                Socket controlNodeSocket = controlNodes.get(controlNodeID);
+                Socket sensorNodeSocket = sensorNodes.get(sensorNodeID);
+                   
+                System.out.println("Pairing control and sensor node. Control Node ID: " + controlNodeID + ", Sensor Node ID: " + sensorNodeID);
+                threadPool.execute(() -> new NodeHandler(controlNodeSocket, sensorNodeSocket));
+
+                controlNodes.remove(controlNodeID);
+                sensorNodes.remove(sensorNodeID);
+            }
+        } catch (IOException e) {
+            System.err.println("Error handling client: " + e.getMessage());
+            try {
+                clientSocket.close();
+            } catch (IOException ioException) {
+                System.err.println("Failed to close client socket: " + ioException.getMessage());
+            }
         }
     }
-
-    public void setChannelDown() {
-        int currentChannel = getActiveChannel();
-        int newChannel = currentChannel - 1;
-        if (isInChannelsRange(newChannel)) {
-            setActiveChannel(newChannel);
-        }else{
-            setActiveChannel(getAvailableChannels()); //Default rule. If is out of range,
-            // we return max as next channel.
-        }
-    }
+    
 }

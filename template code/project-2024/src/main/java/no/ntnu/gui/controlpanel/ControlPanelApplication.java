@@ -61,6 +61,7 @@ public class ControlPanelApplication extends Application implements GreenhouseEv
   @Override
   public void start(Stage stage) {
     if (channel == null) {
+      //logic.onCommunicationChannelClosed();
       throw new IllegalStateException(
           "No communication channel. See the README on how to use fake event spawner!");
     }
@@ -73,9 +74,6 @@ public class ControlPanelApplication extends Application implements GreenhouseEv
     stage.show();
     logic.addListener(this);
     logic.setCommunicationChannelListener(this);
-    if (!channel.open()) {
-      logic.onCommunicationChannelClosed();
-    }
   }
 
   private static Label createEmptyContent() {

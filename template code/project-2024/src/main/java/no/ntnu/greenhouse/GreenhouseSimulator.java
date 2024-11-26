@@ -16,6 +16,10 @@ public class GreenhouseSimulator {
   private final List<PeriodicSwitch> periodicSwitches = new LinkedList<>();
   private final boolean fake;
 
+  // variables for TCP connection
+  private final String serverAddress = "localhost";
+  private final int portNumber = 1238;
+
   /**
    * Create a greenhouse simulator.
    *
@@ -66,7 +70,9 @@ public class GreenhouseSimulator {
   }
 
   private void initiateRealCommunication() {
-    // TODO - here you can set up the TCP or UDP communication
+    for(SensorActuatorNode node : nodes.values()) {
+      node.connectToServer(serverAddress, portNumber);
+    }
   }
 
   private void initiateFakePeriodicSwitches() {

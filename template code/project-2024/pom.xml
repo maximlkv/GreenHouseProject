@@ -11,7 +11,7 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <java.version>21</java.version>
-        <javafx.version>17.0.8</javafx.version>
+        <javafx.version>17</javafx.version>
         <javafx.maven.plugin.version>0.0.8</javafx.maven.plugin.version>
     </properties>
 
@@ -50,7 +50,7 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>no.ntnu.run.GreenhouseGuiStarter</mainClass> <!-- Replace with your default main class -->
+                            <mainClass>no.ntnu.run.ControlPanelStarter</mainClass> <!-- Replace with your default main class -->
                         </manifest>
                     </archive>
                 </configuration>
@@ -62,7 +62,7 @@
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>3.0.0</version>
                 <configuration>
-                    <mainClass>no.ntnu.run.GreenhouseGuiStarter</mainClass> <!-- Replace with your default main class -->
+                    <mainClass>no.ntnu.run.ControlPanelStarter</mainClass> <!-- Replace with your default main class -->
                 </configuration>
             </plugin>
 

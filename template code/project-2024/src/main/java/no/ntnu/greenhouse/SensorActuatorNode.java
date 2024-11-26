@@ -1,5 +1,10 @@
 package no.ntnu.greenhouse;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
+import java.net.Socket;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
@@ -18,6 +23,13 @@ public class SensorActuatorNode implements ActuatorListener, CommunicationChanne
   // How often to generate new sensor values, in seconds.
   private static final long SENSING_DELAY = 5000;
   private final int id;
+
+  // TCP socket
+  private Socket socket;
+  private String serverAddress;
+  private int portNumber;
+  private BufferedReader socketReader;
+  private PrintWriter socketWriter;
 
   private final List<Sensor> sensors = new LinkedList<>();
   private final ActuatorCollection actuators = new ActuatorCollection();
@@ -312,5 +324,24 @@ public class SensorActuatorNode implements ActuatorListener, CommunicationChanne
     for (Actuator actuator : actuators) {
       actuator.set(on);
     }
+  }
+
+  public void connectToServer(String serverAddress, int portNumber) {
+    try {
+      this.serverAddress = serverAddress;
+      this.portNumber = portNumber;
+      socket = new Socket(serverAddress, portNumber);
+      socketReader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+      socketWriter = new PrintWriter(socket.getOutputStream(), true);
+
+      String handshakeMessage = "SENSOR:" + id;
+      socketWriter.println(handshakeMessage);
+      
+      Logger.info("Node " + getId() + " connected to " + serverAddress + ", " + portNumber);
+
+    } catch (IOException e){
+      Logger.error("Failed to connect node" + getId() + " to server:" + e.getMessage());
+    }
+
   }
 }

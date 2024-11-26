@@ -1,8 +1,10 @@
 package no.ntnu.run;
 
 import no.ntnu.controlpanel.CommunicationChannel;
+import no.ntnu.controlpanel.ControlPanelCommunicationChannel;
 import no.ntnu.controlpanel.ControlPanelLogic;
 import no.ntnu.controlpanel.FakeCommunicationChannel;
+import no.ntnu.greenhouse.GreenhouseSimulator;
 import no.ntnu.gui.controlpanel.ControlPanelApplication;
 import no.ntnu.tools.Logger;
 
@@ -13,7 +15,6 @@ import no.ntnu.tools.Logger;
  */
 public class ControlPanelStarter {
   private final boolean fake;
-
   public ControlPanelStarter(boolean fake) {
     this.fake = fake;
   }
@@ -38,12 +39,21 @@ public class ControlPanelStarter {
   }
 
   private void start() {
+
+    GreenhouseSimulator greenhouseSimulator = new GreenhouseSimulator(fake);
+    greenhouseSimulator.initialize();
+    greenhouseSimulator.start(); // Start the greenhouse simulation
+    Logger.info("GreenhouseSimulator started");
+
     ControlPanelLogic logic = new ControlPanelLogic();
     CommunicationChannel channel = initiateCommunication(logic, fake);
     ControlPanelApplication.startApp(logic, channel);
     // This code is reached only after the GUI-window is closed
     Logger.info("Exiting the control panel application");
+
+    greenhouseSimulator.stop();
     stopCommunication();
+
   }
 
   private CommunicationChannel initiateCommunication(ControlPanelLogic logic, boolean fake) {
@@ -57,10 +67,18 @@ public class ControlPanelStarter {
   }
 
   private CommunicationChannel initiateSocketCommunication(ControlPanelLogic logic) {
-    // TODO - here you initiate TCP/UDP socket communication
-    // You communication class(es) may want to get reference to the logic and call necessary
-    // logic methods when events happen (for example, when sensor data is received)
-    return null;
+    String serverAddress = "localhost";
+    int portNumber = 1238;
+    ControlPanelCommunicationChannel communicationChannel = new ControlPanelCommunicationChannel(serverAddress, portNumber);
+    if(communicationChannel.open()) {
+      System.out.println();
+      communicationChannel.listenForSensorData();
+      return communicationChannel;
+    } else {
+      Logger.error("Failed to establish connection to server.");
+      return null;
+    }
+
   }
 
   private CommunicationChannel initiateFakeSpawner(ControlPanelLogic logic) {
@@ -94,4 +112,8 @@ public class ControlPanelStarter {
   private void stopCommunication() {
     // TODO - here you stop the TCP/UDP socket communication
   }
+
+    public static void printDebugMessage() {
+    System.out.println("REACHED THIS POINT");
+    }
 }
