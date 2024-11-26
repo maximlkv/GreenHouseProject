@@ -15,6 +15,7 @@ import no.ntnu.listeners.common.CommunicationChannelListener;
 import no.ntnu.listeners.greenhouse.NodeStateListener;
 import no.ntnu.listeners.greenhouse.SensorListener;
 import no.ntnu.tools.Logger;
+import org.json.JSONObject;
 
 /**
  * Represents one node with sensors and actuators.
@@ -186,11 +187,31 @@ public class SensorActuatorNode implements ActuatorListener, CommunicationChanne
   /**
    * Generate new sensor values and send a notification to all listeners.
    */
-  public void generateNewSensorValues() {
-    Logger.infoNoNewline("Node #" + id);
-    addRandomNoiseToSensors();
-    notifySensorChanges();
-    debugPrint();
+    public void generateNewSensorValues() {
+      Logger.infoNoNewline("Node #" + id);
+      addRandomNoiseToSensors();
+      notifySensorChanges();
+      debugPrint();
+
+      //TODO I'm not sure this is the best place to put this code.
+      if (socketWriter != null) {
+        try {
+          JSONObject sensorData = new JSONObject();
+          sensorData.put("type", "SENSOR_DATA");
+          sensorData.put("source", id);
+
+          JSONObject data = new JSONObject();
+          for (Sensor sensor : sensors) {
+            data.put(sensor.getType(), sensor.getReading().getValue());
+          }
+          sensorData.put("data", data);
+
+          socketWriter.println(sensorData.toString());
+          Logger.info("Node " + id + " sent sensor data to server." + sensorData.toString());
+        } catch (Exception e) {
+          Logger.error("Failed to send sensor data for node " + id + ": " + e.getMessage());
+        }
+      }
   }
 
   private void addRandomNoiseToSensors() {

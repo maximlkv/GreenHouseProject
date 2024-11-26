@@ -39,7 +39,6 @@ public class NodeHandler implements Runnable{
         } catch(IOException e) {
             Logger.error("Issue setting up input and output streams for Nodes:" + e.getMessage());
         }
-        
             
         nodeThreadPool.execute(() -> receiveAndRelaySensorData());
         nodeThreadPool.execute(() -> receiveAndRelayControlCommands());
@@ -47,13 +46,41 @@ public class NodeHandler implements Runnable{
 
     private void receiveAndRelaySensorData() {
         Logger.info("I think this works.");
-        closeConnection();
+        try {
+            String sensorDataMessage;
+            while ((sensorDataMessage = sensorReader.readLine()) != null) {
+                Logger.info("Received data from Sensor Node: " + sensorDataMessage);
+
+                // Reenviar los datos al Control Node
+                controlWriter.println(sensorDataMessage);
+                Logger.info("Relayed data to Control Node");
+            }
+        } catch (IOException e) {
+            Logger.error("Error while receiving or relaying sensor data: " + e.getMessage());
+        } finally {
+            closeConnection();
+        }
     }
+
 
     private void receiveAndRelayControlCommands() {
         Logger.info("I think this still works.");
-        closeConnection();
+        try {
+            String commandMessage;
+            while ((commandMessage = controlReader.readLine()) != null) {
+                Logger.info("Received command from Control Node: " + commandMessage);
+
+                // Reenviar el comando al Sensor Node
+                sensorWriter.println(commandMessage);
+                Logger.info("Relayed command to Sensor Node");
+            }
+        } catch (IOException e) {
+            Logger.error("Error while receiving or relaying commands: " + e.getMessage());
+        } finally {
+            closeConnection();
+        }
     }
+
 
     private void closeConnection() {
         try {
