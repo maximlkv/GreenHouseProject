@@ -5,11 +5,9 @@ import java.io.InputStreamReader;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.Map;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.io.BufferedReader;
 import no.ntnu.tools.Logger;
 
@@ -79,31 +77,16 @@ public class Server {
 
     private void handleClient(Socket clientSocket) {
         try {
-            
             // receive Node type and ID from newly connected Node and place it according map to wait for pairing
+            String handshakeMessage = receiveHandshakeMessageFromClient(clientSocket); // Format NODETYPE:ID
+            System.out.println(handshakeMessage);
+            String[] handshakeParts = splitHandShakeMessage(handshakeMessage, clientSocket);
 
-            BufferedReader reader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
-            String handshakeMessage = reader.readLine().trim(); // Expected format: NODE_TYPE:ID
-
-            if (handshakeMessage.trim().isEmpty()) {
-                Logger.error("Received empty handshake message. Closing client socket.");
-                clientSocket.close();
-                return;
-            }
-
-            String[] handshakeParts = handshakeMessage.split(":");
-            if(handshakeParts.length != 2) {
-                Logger.error("Invalid Handshake format. Closing client socket");
-                clientSocket.close();
-            }
-            String nodeType = handshakeParts[0];
-            int nodeID;
-            try {
+            String nodeType = null;
+            int nodeID = 0;
+            if(handshakeParts != null) {
+                nodeType = handshakeParts[0];
                 nodeID = Integer.parseInt(handshakeParts[1]);
-            } catch (NumberFormatException e) {
-                System.err.println("Invalid Node ID. Closing client socket.");
-                clientSocket.close();
-                return;
             }
             System.out.println("New node connected. Type: " + nodeType + ", ID: " +  nodeID);
 
@@ -116,30 +99,58 @@ public class Server {
                 clientSocket.close();
                 return;
             }
-
             // pair control and sensor/actuator nodes if there are any unpaired nodes waiting. afterwards remove them from the maps.
-            
             if(!controlNodes.isEmpty() && !sensorNodes.isEmpty()) {
-
-                Integer controlNodeID = controlNodes.keySet().iterator().next();
-                Integer sensorNodeID = sensorNodes.keySet().iterator().next();
-                Socket controlNodeSocket = controlNodes.get(controlNodeID);
-                Socket sensorNodeSocket = sensorNodes.get(sensorNodeID);
-                   
-                System.out.println("Pairing control and sensor node. Control Node ID: " + controlNodeID + ", Sensor Node ID: " + sensorNodeID);
-                threadPool.execute(() -> new NodeHandler(controlNodeSocket, sensorNodeSocket).run());
-
-                controlNodes.remove(controlNodeID);
-                sensorNodes.remove(sensorNodeID);
+                pairWaitingNodes();
             }
         } catch (IOException e) {
             System.err.println("Error handling client: " + e.getMessage());
             try {
                 clientSocket.close();
-            } catch (IOException ioException) {
-                System.err.println("Failed to close client socket: " + ioException.getMessage());
+            } catch (IOException i) {
+                System.err.println("Failed to close client socket: " + i.getMessage());
             }
         }
     }
-    
+
+    private void pairWaitingNodes() {
+        Integer controlNodeID = controlNodes.keySet().iterator().next();
+        Integer sensorNodeID = sensorNodes.keySet().iterator().next();
+        Socket controlNodeSocket = controlNodes.get(controlNodeID);
+        Socket sensorNodeSocket = sensorNodes.get(sensorNodeID);
+        System.out.println("Pairing control and sensor node. Control Node ID: " + controlNodeID + ", Sensor Node ID: " + sensorNodeID);
+        threadPool.execute(() -> new NodeHandler(controlNodeSocket, sensorNodeSocket).run());
+        controlNodes.remove(controlNodeID);
+        sensorNodes.remove(sensorNodeID);
+    }
+
+    private String[] splitHandShakeMessage(String message, Socket clientSocket) {
+        try {
+            String[] parts = message.split(":");
+            if(parts.length != 2) {
+                Logger.error("Invalid Handshake format. Closing client socket");
+                clientSocket.close();
+            }
+            return parts;
+        } catch (IOException e) {
+            Logger.error("Failed to close client socket: " + e.getMessage());
+            return null;
+        }
+    }
+
+    private String receiveHandshakeMessageFromClient(Socket clientSocket) {
+        try {
+            BufferedReader reader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+            String handshakeMessage = reader.readLine();
+            if (handshakeMessage == null || handshakeMessage.trim().isEmpty()) {
+                Logger.error("Received empty handshake message. Closing client socket.");
+                clientSocket.close();
+            }
+            return handshakeMessage;
+        } catch (IOException e) {
+            Logger.error("Error receiving handshake message: " + e.getMessage());
+            return null;
+        }
+    }
+
 }

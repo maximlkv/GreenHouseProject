@@ -34,9 +34,9 @@ public class GreenhouseSimulator {
    * Initialise the greenhouse but don't start the simulation just yet.
    */
   public void initialize() {
-    createNode(1, 2, 1, 0, 0);
-    createNode(1, 0, 0, 2, 1);
-    createNode(2, 0, 0, 0, 0);
+    createNode(1, 1, 1, 1, 0);
+    //createNode(1, 0, 0, 2, 1);
+    //createNode(2, 0, 0, 0, 0);
     Logger.info("Greenhouse initialized");
   }
 
