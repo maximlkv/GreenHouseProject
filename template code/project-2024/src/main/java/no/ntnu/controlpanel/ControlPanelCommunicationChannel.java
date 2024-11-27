@@ -5,9 +5,12 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
+import java.util.Timer;
+import java.util.TimerTask;
 
 import no.ntnu.run.ControlPanelStarter;
 import no.ntnu.tools.Logger;
+import org.json.JSONObject;
 
 public class ControlPanelCommunicationChannel implements CommunicationChannel {
     private Socket clientSocket;
@@ -57,13 +60,18 @@ public class ControlPanelCommunicationChannel implements CommunicationChannel {
         }
     }
 
-    public void listenForSensorData() {
+    public void listenForSensorData(ControlPanelLogic logic) {
     // TODO - implement listening to sensor data properly (currently chatgpt code)
         new Thread(() -> {
             String message;
             try {
                 while ((message = socketReader.readLine()) != null) {
                     Logger.info("Received sensor data: " + message);
+                    JSONObject jsonObject = new JSONObject(message);
+                    int nodeId = jsonObject.getInt("source");
+                    Logger.info("Adding node info to GUI:"+ nodeId);
+                    logic.onNodeAdded(new SensorActuatorNodeInfo(nodeId));
+
                 }
             } catch (IOException e) {
                 Logger.error("Error reading from server: " + e.getMessage());

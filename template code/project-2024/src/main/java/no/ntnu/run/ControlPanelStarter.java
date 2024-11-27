@@ -72,7 +72,8 @@ public class ControlPanelStarter {
     ControlPanelCommunicationChannel communicationChannel = new ControlPanelCommunicationChannel(serverAddress, portNumber);
     if(communicationChannel.open()) {
       System.out.println();
-      communicationChannel.listenForSensorData();
+      communicationChannel.listenForSensorData(logic);
+      logic.setCommunicationChannel(communicationChannel);
       return communicationChannel;
     } else {
       Logger.error("Failed to establish connection to server.");
