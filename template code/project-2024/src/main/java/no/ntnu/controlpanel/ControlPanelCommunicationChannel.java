@@ -5,11 +5,12 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
-import java.util.Timer;
-import java.util.TimerTask;
+import java.util.*;
 
+import no.ntnu.greenhouse.SensorReading;
 import no.ntnu.run.ControlPanelStarter;
 import no.ntnu.tools.Logger;
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 public class ControlPanelCommunicationChannel implements CommunicationChannel {
@@ -72,6 +73,10 @@ public class ControlPanelCommunicationChannel implements CommunicationChannel {
                     Logger.info("Adding node info to GUI:"+ nodeId);
                     logic.onNodeAdded(new SensorActuatorNodeInfo(nodeId));
 
+                    // Sensor Data updates.
+                    // TODO we need to update this message before
+                   // List<SensorReading> sensors = parseSensorReadings(message);
+                   // logic.onSensorData(nodeId, sensors);
                 }
             } catch (IOException e) {
                 Logger.error("Error reading from server: " + e.getMessage());
@@ -89,5 +94,23 @@ public class ControlPanelCommunicationChannel implements CommunicationChannel {
         } catch (IOException e) {
             Logger.error("Error closing the connection: " + e.getMessage());
         }
+    }
+    private List<SensorReading> parseSensorReadings(String sensorInfo) {
+        List<SensorReading> sensorReadings = new ArrayList<>();
+
+        JSONArray jsonArray = new JSONArray(sensorInfo);
+        for (int i = 0; i < jsonArray.length(); i++) {
+            JSONObject jsonObject = jsonArray.getJSONObject(i);
+
+            String type = jsonObject.getString("type");
+            double value = jsonObject.getDouble("value");
+            String unit = jsonObject.getString("unit");
+
+            SensorReading reading = new SensorReading(type, value, unit);
+            sensorReadings.add(reading);
+        }
+
+        return sensorReadings;
+
     }
 }
