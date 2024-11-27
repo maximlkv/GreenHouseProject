@@ -15,6 +15,7 @@ import no.ntnu.listeners.common.CommunicationChannelListener;
 import no.ntnu.listeners.greenhouse.NodeStateListener;
 import no.ntnu.listeners.greenhouse.SensorListener;
 import no.ntnu.tools.Logger;
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 /**
@@ -196,22 +197,39 @@ public class SensorActuatorNode implements ActuatorListener, CommunicationChanne
       //TODO I'm not sure this is the best place to put this code.
       if (socketWriter != null) {
         try {
-          JSONObject sensorData = new JSONObject();
-          sensorData.put("type", "SENSOR_DATA");
-          sensorData.put("source", id);
-
-          JSONObject data = new JSONObject();
-          for (Sensor sensor : sensors) {
-            data.put(sensor.getType(), sensor.getReading().getValue());
-          }
-          sensorData.put("data", data);
-
-          socketWriter.println(sensorData.toString());
-          Logger.info("Node " + id + " sent sensor data to server." + sensorData.toString());
+          JSONObject sensorActuatorData = createJSONObject();
+          socketWriter.println(sensorActuatorData);
+          Logger.info("Node " + id + " sent sensor data to server." + sensorActuatorData.toString());
         } catch (Exception e) {
           Logger.error("Failed to send sensor data for node " + id + ": " + e.getMessage());
         }
       }
+  }
+
+  private JSONObject createJSONObject() {
+    JSONObject sensorActuatorData = new JSONObject();
+    sensorActuatorData.put("id", id);
+
+    JSONArray sensorData = new JSONArray();
+    for (Sensor sensor : sensors) {
+      JSONObject sensorDataObj = new JSONObject();
+      sensorDataObj.put("type", sensor.getType());
+      sensorDataObj.put("value", sensor.getReading().getValue());
+      sensorDataObj.put("unit", sensor.getReading().getUnit());
+      sensorData.put(sensorDataObj);
+    }
+    sensorActuatorData.put("sensors", sensorData);
+
+    JSONArray actuatorData = new JSONArray();
+    for (Actuator actuator : actuators) {
+      JSONObject actuatorDataObj = new JSONObject();
+      actuatorDataObj.put("id", actuator.getId());
+      actuatorDataObj.put("type", actuator.getType());
+      actuatorDataObj.put("status", actuator.isOn() ? "on" : "off");
+      actuatorData.put(actuatorDataObj);
+    }
+    sensorActuatorData.put("actuators", actuatorData);
+    return sensorActuatorData;
   }
 
   private void addRandomNoiseToSensors() {
