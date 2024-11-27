@@ -8,9 +8,7 @@ import java.net.Socket;
 import java.util.*;
 
 import no.ntnu.greenhouse.Actuator;
-import no.ntnu.greenhouse.SensorActuatorNode;
 import no.ntnu.greenhouse.SensorReading;
-import no.ntnu.run.ControlPanelStarter;
 import no.ntnu.tools.Logger;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -22,12 +20,15 @@ public class ControlPanelCommunicationChannel implements CommunicationChannel {
     private final String serverAddress;
     private final int serverPort;
     private boolean isOpen;
+    private final ControlPanelLogic logic;
 
 
-    public ControlPanelCommunicationChannel(String serverAddress, int serverPort) {
+
+    public ControlPanelCommunicationChannel(ControlPanelLogic logic,String serverAddress, int serverPort) {
         this.serverAddress = serverAddress;
         this.serverPort = serverPort;
         this.isOpen = false;
+        this.logic = logic;
     }
 
     @Override
@@ -64,7 +65,7 @@ public class ControlPanelCommunicationChannel implements CommunicationChannel {
         }
     }
 
-    public void listenForSensorData(ControlPanelLogic logic) {
+    public void listenForSensorData() {
     // TODO - implement listening to sensor data properly (currently chatgpt code)
         new Thread(() -> {
             String message;
@@ -124,7 +125,7 @@ public class ControlPanelCommunicationChannel implements CommunicationChannel {
 
         return sensorReadings;
     }
-    public static List<Actuator> parseActuators(String jsonMessage, SensorActuatorNodeInfo info) {
+    private List<Actuator> parseActuators(String jsonMessage, SensorActuatorNodeInfo info) {
         List<Actuator> actuators = new ArrayList<>();
 
         JSONObject jsonObject = new JSONObject(jsonMessage);
@@ -132,14 +133,10 @@ public class ControlPanelCommunicationChannel implements CommunicationChannel {
 
         for (int i = 0; i < actuatorsArray.length(); i++) {
             JSONObject actuatorObject = actuatorsArray.getJSONObject(i);
-
-            int id = actuatorObject.getInt("id");
             String type = actuatorObject.getString("type");
-            String status = actuatorObject.getString("status");
 
-          //  actuators.add(new Actuator(type,id));
             Actuator actuator = new Actuator(type, info.getId());
-          //  actuator.setListener(logic);
+            actuator.setListener(logic);
             info.addActuator(actuator);
 
         }

@@ -69,10 +69,10 @@ public class ControlPanelStarter {
   private CommunicationChannel initiateSocketCommunication(ControlPanelLogic logic) {
     String serverAddress = "localhost";
     int portNumber = 1238;
-    ControlPanelCommunicationChannel communicationChannel = new ControlPanelCommunicationChannel(serverAddress, portNumber);
+    ControlPanelCommunicationChannel communicationChannel = new ControlPanelCommunicationChannel(logic, serverAddress, portNumber);
     if(communicationChannel.open()) {
       System.out.println();
-      communicationChannel.listenForSensorData(logic);
+      communicationChannel.listenForSensorData();
       logic.setCommunicationChannel(communicationChannel);
       return communicationChannel;
     } else {
