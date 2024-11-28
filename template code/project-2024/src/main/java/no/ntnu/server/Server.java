@@ -122,7 +122,7 @@ public class Server {
         Socket controlNodeSocket = controlNodes.get(controlNodeID);
         Socket sensorNodeSocket = sensorNodes.get(sensorNodeID);
         System.out.println("Pairing control and sensor node. Control Node ID: " + controlNodeID + ", Sensor Node ID: " + sensorNodeID);
-        threadPool.execute(() -> new NodeHandler(this, controlNodeSocket, sensorNodeSocket).run());
+        threadPool.execute(() -> new NodeHandler(this,sensorNodeSocket, controlNodeSocket).run());
         controlNodes.remove(controlNodeID);
         sensorNodes.remove(sensorNodeID);
     }
