@@ -3,6 +3,7 @@ package no.ntnu.controlpanel;
 import no.ntnu.greenhouse.Actuator;
 import no.ntnu.greenhouse.ActuatorCollection;
 import no.ntnu.greenhouse.Sensor;
+import no.ntnu.greenhouse.SensorReading;
 
 import java.util.LinkedList;
 import java.util.List;
@@ -15,7 +16,7 @@ public class SensorActuatorNodeInfo {
 
   private final int nodeId;
   private final ActuatorCollection actuators = new ActuatorCollection();
-  private final List<Sensor> sensors = new LinkedList<>();
+  private final List<SensorReading> sensors = new LinkedList<>();
 
   public SensorActuatorNodeInfo(int nodeId) {
     this.nodeId = nodeId;
@@ -25,7 +26,7 @@ public class SensorActuatorNodeInfo {
     actuators.add(actuator);
   }
 
-  public void addSensor(Sensor sensor) {sensors.add(sensor);}
+  public void addSensor(SensorReading sensor) {sensors.add(sensor);}
 
   /**
    * Get ID of the node.
@@ -45,7 +46,7 @@ public class SensorActuatorNodeInfo {
     return actuators;
   }
 
-  public List<Sensor> getSensors() {return sensors;}
+  public List<SensorReading> getSensors() {return sensors;}
 
   /**
    * Get an actuator of given type, with given index.

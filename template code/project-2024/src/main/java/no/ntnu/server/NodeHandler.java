@@ -5,9 +5,18 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+
+import no.ntnu.controlpanel.SensorActuatorNodeInfo;
+import no.ntnu.greenhouse.Actuator;
+import no.ntnu.greenhouse.Sensor;
+import no.ntnu.greenhouse.SensorReading;
 import no.ntnu.tools.Logger;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 /**
  * The NodeHandler class manages communication between a client socket and a Server.
@@ -21,9 +30,10 @@ public class NodeHandler implements Runnable{
     private BufferedReader controlReader;
     private PrintWriter controlWriter;
     private ExecutorService nodeThreadPool = Executors.newFixedThreadPool(2);
+    private Server server;
 
-
-    public NodeHandler(Socket sensorSocket, Socket controlSocket) {
+    public NodeHandler(Server server, Socket sensorSocket, Socket controlSocket) {
+        this.server = server;
         this.sensorSocket = sensorSocket;
         this.controlSocket = controlSocket;
         System.out.println("Nodes connected");
@@ -45,7 +55,7 @@ public class NodeHandler implements Runnable{
     }
 
     private void receiveAndRelaySensorData() {
-        Logger.info("I think this works.");
+        Logger.info("I think this works: receiveAndRelaySensorData");
         try {
             String sensorDataMessage;
             while ((sensorDataMessage = sensorReader.readLine()) != null) {
@@ -69,7 +79,7 @@ public class NodeHandler implements Runnable{
             String commandMessage;
             while ((commandMessage = controlReader.readLine()) != null) {
                 Logger.info("Received command from Control Node: " + commandMessage);
-
+                handleSensorDataCommand(commandMessage);
                 // Reenviar el comando al Sensor Node
                 sensorWriter.println(commandMessage);
                 Logger.info("Relayed command to Sensor Node");
@@ -79,6 +89,56 @@ public class NodeHandler implements Runnable{
         } finally {
             closeConnection();
         }
+    }
+
+    private void handleSensorDataCommand(String commandMessage) {
+        Logger.info("[Server] Received sensor data: " + commandMessage);
+        JSONObject jsonObject = new JSONObject(commandMessage);
+        int nodeId = jsonObject.getInt("id");
+        SensorActuatorNodeInfo sensorActuatorNodeInfo = new SensorActuatorNodeInfo(nodeId);
+
+        // Sensor Data updates.
+        List<SensorReading> sensors = parseSensorReadings(commandMessage);
+        for (SensorReading sensorReading : sensors) {
+            sensorActuatorNodeInfo.addSensor(sensorReading);
+        }
+        List<Actuator> actuators = parseActuators(commandMessage,sensorActuatorNodeInfo);
+        for (Actuator actuator : actuators) {
+            sensorActuatorNodeInfo.addActuator(actuator);
+        }
+        server.addSensorDataNode(sensorActuatorNodeInfo);
+    }
+
+    private List<Actuator> parseActuators(String commandMessage, SensorActuatorNodeInfo info) {
+        List<Actuator> actuators = new ArrayList<>();
+
+        JSONObject jsonObject = new JSONObject(commandMessage);
+        JSONArray actuatorsArray = jsonObject.getJSONArray("actuators");
+
+        for (int i = 0; i < actuatorsArray.length(); i++) {
+            JSONObject actuatorObject = actuatorsArray.getJSONObject(i);
+            String type = actuatorObject.getString("type");
+
+            Actuator actuator = new Actuator(type, info.getId());
+            actuators.add(actuator);
+        }
+
+        return actuators;
+    }
+
+    private List<SensorReading> parseSensorReadings(String commandMessage) {
+        List<SensorReading> sensorReadings = new ArrayList<>();
+        JSONObject jsonObject = new JSONObject(commandMessage);
+        JSONArray sensorsArray = jsonObject.getJSONArray("sensors");
+        for (int i = 0; i < sensorsArray.length(); i++) {
+            JSONObject sensorObject = sensorsArray.getJSONObject(i);
+
+            String type = sensorObject.getString("type");
+            double value = sensorObject.getDouble("value");
+            String unit = sensorObject.getString("unit");
+            sensorReadings.add(new SensorReading(type, value, unit));
+        }
+        return sensorReadings;
     }
 
 

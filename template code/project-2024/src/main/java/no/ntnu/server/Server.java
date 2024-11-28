@@ -9,6 +9,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.io.BufferedReader;
+
+import no.ntnu.controlpanel.SensorActuatorNodeInfo;
 import no.ntnu.tools.Logger;
 
 
@@ -22,6 +24,7 @@ public class Server {
     // Map for nodes which haven't been paired yet. each control node will later be paired with a sensor/actuator node.
     private final Map<Integer, Socket> controlNodes = new ConcurrentHashMap<>();
     private final Map<Integer, Socket> sensorNodes = new ConcurrentHashMap<>();
+    private Map<Integer, SensorActuatorNodeInfo> nodesInfo =  new ConcurrentHashMap<>();
 
     // thread pool for handling newly connected clients
     private final ExecutorService threadPool = Executors.newFixedThreadPool(10);
@@ -119,7 +122,7 @@ public class Server {
         Socket controlNodeSocket = controlNodes.get(controlNodeID);
         Socket sensorNodeSocket = sensorNodes.get(sensorNodeID);
         System.out.println("Pairing control and sensor node. Control Node ID: " + controlNodeID + ", Sensor Node ID: " + sensorNodeID);
-        threadPool.execute(() -> new NodeHandler(controlNodeSocket, sensorNodeSocket).run());
+        threadPool.execute(() -> new NodeHandler(this, controlNodeSocket, sensorNodeSocket).run());
         controlNodes.remove(controlNodeID);
         sensorNodes.remove(sensorNodeID);
     }
@@ -151,6 +154,10 @@ public class Server {
             Logger.error("Error receiving handshake message: " + e.getMessage());
             return null;
         }
+    }
+
+    public void addSensorDataNode(SensorActuatorNodeInfo node){
+        this.nodesInfo.put(node.getId(), node);
     }
 
 }

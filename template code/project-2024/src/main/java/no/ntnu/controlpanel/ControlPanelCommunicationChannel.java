@@ -23,7 +23,6 @@ public class ControlPanelCommunicationChannel implements CommunicationChannel {
     private final ControlPanelLogic logic;
 
 
-
     public ControlPanelCommunicationChannel(ControlPanelLogic logic,String serverAddress, int serverPort) {
         this.serverAddress = serverAddress;
         this.serverPort = serverPort;
@@ -49,13 +48,20 @@ public class ControlPanelCommunicationChannel implements CommunicationChannel {
 
     @Override
     public void sendActuatorChange(int nodeId, int actuatorId, boolean isOn) {
-        // TODO - implement proper commands (this is a draft by chatgpt for now)
         if (!isOpen) {
             Logger.error("Connection is not open!");
             return;
         }
+                JSONObject message = new JSONObject();
+                message.put("id", nodeId);
 
-        String message = String.format("ACTUATOR_CHANGE;%d;%d;%b", nodeId, actuatorId, isOn);
+                JSONArray actuatorsArray = new JSONArray();
+                JSONObject actuator = new JSONObject();
+                actuator.put("id", actuatorId);
+                actuator.put("status", isOn ? "on" : "off");
+
+                actuatorsArray.put(actuator);
+                message.put("actuators", actuatorsArray);
 
         try {
             socketWriter.println(message);
