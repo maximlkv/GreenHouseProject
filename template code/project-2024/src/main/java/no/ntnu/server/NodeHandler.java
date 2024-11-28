@@ -60,6 +60,7 @@ public class NodeHandler implements Runnable{
             String sensorDataMessage;
             while ((sensorDataMessage = sensorReader.readLine()) != null) {
                 Logger.info("Received data from Sensor Node: " + sensorDataMessage);
+                handleSensorDataCommand(sensorDataMessage);
 
                 // Reenviar los datos al Control Node
                 controlWriter.println(sensorDataMessage);
@@ -79,7 +80,6 @@ public class NodeHandler implements Runnable{
             String commandMessage;
             while ((commandMessage = controlReader.readLine()) != null) {
                 Logger.info("Received command from Control Node: " + commandMessage);
-                handleSensorDataCommand(commandMessage);
                 // Reenviar el comando al Sensor Node
                 sensorWriter.println(commandMessage);
                 Logger.info("Relayed command to Sensor Node");
@@ -92,7 +92,6 @@ public class NodeHandler implements Runnable{
     }
 
     private void handleSensorDataCommand(String commandMessage) {
-        Logger.info("[Server] Received sensor data: " + commandMessage);
         JSONObject jsonObject = new JSONObject(commandMessage);
         int nodeId = jsonObject.getInt("id");
         SensorActuatorNodeInfo sensorActuatorNodeInfo = new SensorActuatorNodeInfo(nodeId);
