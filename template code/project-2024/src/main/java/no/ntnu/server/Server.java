@@ -20,6 +20,7 @@ public class Server {
 
     private ServerSocket serverSocket;
     private boolean running;
+    private NodeHandler nodeHandler;
 
     // Map for nodes which haven't been paired yet. each control node will later be paired with a sensor/actuator node.
     private final Map<Integer, Socket> controlNodes = new ConcurrentHashMap<>();
@@ -40,15 +41,16 @@ public class Server {
     private void run() {
         if (openListeningSocket()) {
             running = true;
-            System.out.println("Server started...");
+            Logger.info("Server started...");
             while (running) {
+                nodeHandler = new NodeHandler(this);
                 Socket clientSocket = acceptNextClient();
                 if(clientSocket != null) {
                     threadPool.execute(() -> handleClient(clientSocket));
                 }
             }
         }
-        System.out.println("Server exiting...");
+        Logger.info("Server exiting...");
     }
 
     /**
@@ -59,10 +61,10 @@ public class Server {
         boolean success = false;
         try {
             serverSocket = new ServerSocket(TCP_PORT);
-            System.out.println("Server listening on port " + TCP_PORT);
+            Logger.info("Server listening on port " + TCP_PORT);
             success = true;
         } catch (IOException e) {
-            System.err.println("Could not open a listening socket on port " + TCP_PORT +
+            Logger.error("Could not open a listening socket on port " + TCP_PORT +
                     ", reason: "+ e.getMessage());
         }
         return success;
@@ -73,7 +75,7 @@ public class Server {
         try {
             clientSocket = serverSocket.accept();
         } catch (IOException e) {
-            System.err.println("Could not accept the next client: " + e.getMessage());
+            Logger.error("Could not accept the next client: " + e.getMessage());
         }
         return clientSocket;
     }
@@ -82,7 +84,6 @@ public class Server {
         try {
             // receive Node type and ID from newly connected Node and place it according map to wait for pairing
             String handshakeMessage = receiveHandshakeMessageFromClient(clientSocket); // Format NODETYPE:ID
-            System.out.println(handshakeMessage);
             String[] handshakeParts = splitHandShakeMessage(handshakeMessage, clientSocket);
 
             String nodeType = null;
@@ -91,32 +92,52 @@ public class Server {
                 nodeType = handshakeParts[0];
                 nodeID = Integer.parseInt(handshakeParts[1]);
             }
-            System.out.println("New node connected. Type: " + nodeType + ", ID: " +  nodeID);
+            Logger.info("New node connected. Type: " + nodeType + ", ID: " +  nodeID);
 
-            if(nodeType.equals("CONTROL")) {
-                controlNodes.put(nodeID, clientSocket);
-            } else if(nodeType.equals("SENSOR")) {
-                sensorNodes.put(nodeID, clientSocket);
-            } else {
-                System.err.println("Invalid node type. Closing connection.");
-                clientSocket.close();
-                return;
+            synchronized (this) {
+                if(nodeType.equals("CONTROL")) {
+                    controlNodes.put(nodeID, clientSocket);
+                } else if(nodeType.equals("SENSOR")) {
+                    if (sensorNodes.containsKey(nodeID)) {
+                        Logger.error("Duplicate sensor node ID: " + nodeID);
+                    } else {
+                        sensorNodes.put(nodeID, clientSocket);
+                    }
+
+                } else {
+                    Logger.error("Invalid node type. Closing connection.");
+                    clientSocket.close();
+                    return;
+                }
             }
+
             // pair control and sensor/actuator nodes if there are any unpaired nodes waiting. afterwards remove them from the maps.
-            if(!controlNodes.isEmpty() && !sensorNodes.isEmpty()) {
-                pairWaitingNodes();
+            assignNodes();
+            if(nodeHandler.readyForCommunication()) {
+                nodeHandler.startCommunication();
             }
         } catch (IOException e) {
-            System.err.println("Error handling client: " + e.getMessage());
+            Logger.error("Error handling client: " + e.getMessage());
             try {
                 clientSocket.close();
             } catch (IOException i) {
-                System.err.println("Failed to close client socket: " + i.getMessage());
+                Logger.error("Failed to close client socket: " + i.getMessage());
             }
         }
     }
 
-    private void pairWaitingNodes() {
+    private synchronized void assignNodes() {
+        if (!controlNodes.isEmpty()) {
+           NodeHandler.addControlNode(controlNodes.entrySet().iterator().next().getValue());
+        }
+        if (!sensorNodes.isEmpty()) {
+            Integer sensorNodeID = sensorNodes.keySet().iterator().next();
+            NodeHandler.addSensorNode(sensorNodeID, sensorNodes.get(sensorNodeID));
+            sensorNodes.remove(sensorNodeID);
+        }
+    }
+
+    /** private void pairWaitingNodes() {
         Integer controlNodeID = controlNodes.keySet().iterator().next();
         Integer sensorNodeID = sensorNodes.keySet().iterator().next();
         Socket controlNodeSocket = controlNodes.get(controlNodeID);
@@ -125,7 +146,7 @@ public class Server {
         threadPool.execute(() -> new NodeHandler(this,sensorNodeSocket, controlNodeSocket).run());
         controlNodes.remove(controlNodeID);
         sensorNodes.remove(sensorNodeID);
-    }
+    }*/
 
     private String[] splitHandShakeMessage(String message, Socket clientSocket) {
         try {

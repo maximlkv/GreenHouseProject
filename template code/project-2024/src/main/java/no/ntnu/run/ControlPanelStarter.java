@@ -114,7 +114,4 @@ public class ControlPanelStarter {
     // TODO - here you stop the TCP/UDP socket communication
   }
 
-    public static void printDebugMessage() {
-    System.out.println("REACHED THIS POINT");
-    }
 }
