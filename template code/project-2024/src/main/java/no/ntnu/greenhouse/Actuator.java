@@ -2,6 +2,8 @@ package no.ntnu.greenhouse;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
+
 import no.ntnu.listeners.common.ActuatorListener;
 
 /**
@@ -30,6 +32,13 @@ public class Actuator {
     this.nodeId = nodeId;
     this.on = false;
     this.id = generateUniqueId();
+  }
+
+  public Actuator(String type, int nodeId, int id, String status) {
+    this.type = type;
+    this.nodeId = nodeId;
+    this.on = Objects.equals(status, "on");
+    this.id = id;
   }
 
   /**
