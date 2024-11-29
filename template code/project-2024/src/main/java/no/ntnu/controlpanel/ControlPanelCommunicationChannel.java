@@ -72,7 +72,6 @@ public class ControlPanelCommunicationChannel implements CommunicationChannel {
     }
 
     public void listenForSensorData() {
-    // TODO - implement listening to sensor data properly (currently chatgpt code)
         new Thread(() -> {
             String message;
             try {
@@ -81,15 +80,33 @@ public class ControlPanelCommunicationChannel implements CommunicationChannel {
                     JSONObject jsonObject = new JSONObject(message);
                     int nodeId = jsonObject.getInt("id");
                     Logger.info("Adding node info to GUI:"+ nodeId);
-                    SensorActuatorNodeInfo sensorActuatorNodeInfo = new SensorActuatorNodeInfo(nodeId);
-                    logic.onNodeAdded(sensorActuatorNodeInfo);
 
                     // Sensor Data updates.
-                    List<SensorReading> sensors = parseSensorReadings(message);
-                    List<Actuator> actuators = parseActuators(message,sensorActuatorNodeInfo);
-                    logic.onSensorData(nodeId, sensors);
-                    for (Actuator actuator : actuators) {
-                        logic.onActuatorStateChanged(nodeId, actuator.getId(), actuator.isOn());
+                    if(message.contains("sensors")){
+                        SensorActuatorNodeInfo sensorActuatorNodeInfo = new SensorActuatorNodeInfo(nodeId);
+                        logic.onNodeAdded(sensorActuatorNodeInfo);
+
+                        List<SensorReading> sensors = parseSensorReadings(message);
+                        List<Actuator> actuators = parseActuators(message,sensorActuatorNodeInfo);
+                        logic.onSensorData(nodeId, sensors);
+                        for (Actuator actuator : actuators) {
+                            Logger.info("Sensors info update actuator: " + actuator.getId() + " status:" + actuator.isOn());
+                            logic.onActuatorStateChanged(nodeId, actuator.getId(), actuator.isOn());
+                        }
+                    }else{
+
+                        JSONObject jsonObject2 = new JSONObject(message);
+                        JSONArray actuatorsArray = jsonObject2.getJSONArray("actuators");
+
+                        for (int i = 0; i < actuatorsArray.length(); i++) {
+                            JSONObject actuatorObject = actuatorsArray.getJSONObject(i);
+                            String status = actuatorObject.getString("status");
+                            int actuatorId = actuatorObject.getInt("id");
+
+                            boolean isOn = Objects.equals(actuatorObject.getString("status"), "on");
+                            Logger.info("Changing actuator: " + actuatorId + " status:" + status);
+                            logic.onActuatorStateChanged(nodeId, actuatorId, isOn);
+                        }
                     }
                 }
             } catch (IOException e) {
@@ -112,13 +129,9 @@ public class ControlPanelCommunicationChannel implements CommunicationChannel {
     private List<SensorReading> parseSensorReadings(String sensorInfo) {
         List<SensorReading> sensorReadings = new ArrayList<>();
 
-        // Parsear el mensaje JSON
         JSONObject jsonObject = new JSONObject(sensorInfo);
-
-        // Extraer el array "sensors"
         JSONArray sensorsArray = jsonObject.getJSONArray("sensors");
 
-        // Iterar sobre los sensores
         for (int i = 0; i < sensorsArray.length(); i++) {
             JSONObject sensorObject = sensorsArray.getJSONObject(i);
 
@@ -140,11 +153,14 @@ public class ControlPanelCommunicationChannel implements CommunicationChannel {
         for (int i = 0; i < actuatorsArray.length(); i++) {
             JSONObject actuatorObject = actuatorsArray.getJSONObject(i);
             String type = actuatorObject.getString("type");
+            int actuatorId = actuatorObject.getInt("id");
+            String status = actuatorObject.getString("status");
 
-            Actuator actuator = new Actuator(type, info.getId());
+            Actuator actuator = new Actuator(type, info.getId(),actuatorId, status);
             actuator.setListener(logic);
             info.addActuator(actuator);
-
+            Logger.info("Adding actuator: " + actuator.getId() + " status:" + actuator.isOn());
+            actuators.add(actuator);
         }
 
         return actuators;
