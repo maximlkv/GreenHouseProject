@@ -39,9 +39,6 @@ public class NodeHandler {
         Logger.info("Added Sensor node to map: " + sensorNodeID);
     }
 
-    public boolean readyForCommunication() {
-        return controlNode != null && !sensorNodesMap.isEmpty();
-    }
 
     public void startCommunication() {
         Logger.info("Attempting to start communication");
