@@ -37,7 +37,7 @@ public class ControlPanelCommunicationChannel implements CommunicationChannel {
             socketWriter = new PrintWriter(clientSocket.getOutputStream(), true);
             socketReader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
             isOpen = true;
-            socketWriter.println("CONTROL:1");
+            socketWriter.println("CONTROL:1:2");
             Logger.info("Connected to server at " + serverAddress + ":" + serverPort);
             return true;
         } catch (IOException e) {

@@ -1,4 +1,4 @@
-package no.ntnu.server;
+package no.ntnu.connection;
 
 import no.ntnu.tools.Logger;
 

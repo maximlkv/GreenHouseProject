@@ -1,4 +1,4 @@
-package no.ntnu.server;
+package no.ntnu.connection;
 
 import java.io.IOException;
 import java.net.Socket;
@@ -22,11 +22,11 @@ public class NodeHandler {
         this.server = server;
     }
 
-    public static void addControlNode(Socket socket) {
+    public void addControlNode(Socket socket) {
         controlNode = new NodeConnection(socket);
     }
 
-    public static void addSensorNode(Integer sensorNodeID, Socket socket) {
+    public void addSensorNode(Integer sensorNodeID, Socket socket) {
         NodeConnection sensorNode = new NodeConnection(socket);
         sensorNodesMap.put(sensorNodeID, sensorNode);
         Logger.info("Added Sensor node to map: " + sensorNodeID);
