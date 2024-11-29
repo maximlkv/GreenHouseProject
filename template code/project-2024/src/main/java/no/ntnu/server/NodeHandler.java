@@ -2,11 +2,18 @@ package no.ntnu.server;
 
 import java.io.IOException;
 import java.net.Socket;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import no.ntnu.controlpanel.SensorActuatorNodeInfo;
+import no.ntnu.greenhouse.Actuator;
+import no.ntnu.greenhouse.Sensor;
 import no.ntnu.tools.Logger;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 /**
  * The NodeHandler class manages communication between a client socket and a Server.
@@ -59,7 +66,7 @@ public class NodeHandler {
     }
 
     private void forwardActuatorCommand(String message) {
-
+        controlNode.getSocketWriter().println(message);
     }
 
     private void sensorDataFlow(int sensorID, NodeConnection sensorNodeConnection) {
@@ -67,6 +74,10 @@ public class NodeHandler {
             String message;
             while ((message = sensorNodeConnection.getSocketReader().readLine()) != null) {
                 Logger.info("Received message from sensor node " + sensorID + ": " + message);
+                //Save as node in the server
+                SensorActuatorNodeInfo sensorActuatorNodeInfo = new SensorActuatorNodeInfo(sensorID);
+                updateNodeInfo(sensorActuatorNodeInfo,message);
+                server.addSensorDataNode(sensorActuatorNodeInfo);
                 controlNode.getSocketWriter().println(message);
             }
         } catch (IOException e) {
@@ -181,6 +192,22 @@ public class NodeHandler {
 
     private void closeConnection() {
         // TODO -- closing of connection for each NodeConnection
+    }
+
+    public void updateNodeInfo(SensorActuatorNodeInfo nodeInfo, String message){
+        JSONObject jsonObject = new JSONObject(message);
+        JSONArray actuatorsArray = jsonObject.getJSONArray("actuators");
+
+        for (int i = 0; i < actuatorsArray.length(); i++) {
+            JSONObject actuatorObject = actuatorsArray.getJSONObject(i);
+            String type = actuatorObject.getString("type");
+            int actuatorId = actuatorObject.getInt("id");
+            String status = actuatorObject.getString("status");
+
+            Actuator actuator = new Actuator(type, nodeInfo.getId(),actuatorId, status);
+            Logger.info("Adding actuator: " + actuator.getId() + " status:" + actuator.isOn());
+            nodeInfo.addActuator(actuator);
+        }
     }
 
 

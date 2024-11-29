@@ -194,12 +194,11 @@ public class SensorActuatorNode implements ActuatorListener, CommunicationChanne
       notifySensorChanges();
       debugPrint();
 
-      //TODO I'm not sure this is the best place to put this code.
       if (socketWriter != null) {
         try {
           JSONObject sensorActuatorData = createJSONObject();
           socketWriter.println(sensorActuatorData);
-          Logger.info("Node " + id + " sent sensor data to server." + sensorActuatorData.toString());
+          Logger.info("Node " + id + " sent sensor data to server." + sensorActuatorData);
         } catch (Exception e) {
           Logger.error("Failed to send sensor data for node " + id + ": " + e.getMessage());
         }
