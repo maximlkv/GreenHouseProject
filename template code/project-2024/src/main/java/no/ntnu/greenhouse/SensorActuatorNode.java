@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.Timer;
 import java.util.TimerTask;
+
 import no.ntnu.listeners.common.ActuatorListener;
 import no.ntnu.listeners.common.CommunicationChannelListener;
 import no.ntnu.listeners.greenhouse.NodeStateListener;
@@ -22,364 +23,411 @@ import org.json.JSONObject;
  * Represents one node with sensors and actuators.
  */
 public class SensorActuatorNode implements ActuatorListener, CommunicationChannelListener {
-  // How often to generate new sensor values, in seconds.
-  private static final long SENSING_DELAY = 5000;
-  private final int id;
+    // How often to generate new sensor values, in seconds.
+    private static final long SENSING_DELAY = 5000;
+    private final int id;
 
-  // TCP socket
-  private Socket socket;
-  private String serverAddress;
-  private int portNumber;
-  private BufferedReader socketReader;
-  private PrintWriter socketWriter;
+    // TCP socket
+    private Socket socket;
+    private BufferedReader socketReader;
+    private PrintWriter socketWriter;
 
-  private final List<Sensor> sensors = new LinkedList<>();
-  private final ActuatorCollection actuators = new ActuatorCollection();
+    private final List<Sensor> sensors = new LinkedList<>();
+    private final ActuatorCollection actuators = new ActuatorCollection();
 
-  private final List<SensorListener> sensorListeners = new LinkedList<>();
-  private final List<ActuatorListener> actuatorListeners = new LinkedList<>();
-  private final List<NodeStateListener> stateListeners = new LinkedList<>();
+    private final List<SensorListener> sensorListeners = new LinkedList<>();
+    private final List<ActuatorListener> actuatorListeners = new LinkedList<>();
+    private final List<NodeStateListener> stateListeners = new LinkedList<>();
 
-  Timer sensorReadingTimer;
+    Timer sensorReadingTimer;
 
-  private boolean running;
-  private final Random random = new Random();
+    private boolean running;
+    private final Random random = new Random();
 
-  /**
-   * Create a sensor/actuator node. Note: the node itself does not check whether the ID is unique.
-   * This is done at the greenhouse-level.
-   *
-   * @param id A unique ID of the node
-   */
-  public SensorActuatorNode(int id) {
-    this.id = id;
-    this.running = false;
-  }
-
-  /**
-   * Get the unique ID of the node.
-   *
-   * @return the ID
-   */
-  public int getId() {
-    return id;
-  }
-
-  /**
-   * Add sensors to the node.
-   *
-   * @param template The template to use for the sensors. The template will be cloned.
-   *                 This template defines the type of sensors, the value range, value
-   *                 generation algorithms, etc.
-   * @param n        The number of sensors to add to the node.
-   */
-  public void addSensors(Sensor template, int n) {
-    if (template == null) {
-      throw new IllegalArgumentException("Sensor template is missing");
-    }
-    String type = template.getType();
-    if (type == null || type.isEmpty()) {
-      throw new IllegalArgumentException("Sensor type missing");
-    }
-    if (n <= 0) {
-      throw new IllegalArgumentException("Can't add a negative number of sensors");
+    /**
+     * Create a sensor/actuator node. Note: the node itself does not check whether the ID is unique.
+     * This is done at the greenhouse-level.
+     *
+     * @param id A unique ID of the node
+     */
+    public SensorActuatorNode(int id) {
+        this.id = id;
+        this.running = false;
     }
 
-    for (int i = 0; i < n; ++i) {
-      sensors.add(template.createClone());
+    /**
+     * Get the unique ID of the node.
+     *
+     * @return the ID
+     */
+    public int getId() {
+        return id;
     }
-  }
 
-  /**
-   * Add an actuator to the node.
-   *
-   * @param actuator The actuator to add
-   */
-  public void addActuator(Actuator actuator) {
-    actuator.setListener(this);
-    actuators.add(actuator);
-    Logger.info("Created " + actuator.getType() + "[" + actuator.getId() + "] on node " + id);
-  }
-
-  /**
-   * Register a new listener for sensor updates.
-   *
-   * @param listener The listener which will get notified every time sensor values change.
-   */
-  public void addSensorListener(SensorListener listener) {
-    if (!sensorListeners.contains(listener)) {
-      sensorListeners.add(listener);
-    }
-  }
-
-  /**
-   * Register a new listener for actuator updates.
-   *
-   * @param listener The listener which will get notified every time actuator state changes.
-   */
-  public void addActuatorListener(ActuatorListener listener) {
-    if (!actuatorListeners.contains(listener)) {
-      actuatorListeners.add(listener);
-    }
-  }
-
-  /**
-   * Register a new listener for node state updates.
-   *
-   * @param listener The listener which will get notified when the state of this node changes
-   */
-  public void addStateListener(NodeStateListener listener) {
-    if (!stateListeners.contains(listener)) {
-      stateListeners.add(listener);
-    }
-  }
-
-
-  /**
-   * Start simulating the sensor node's operation.
-   */
-  public void start() {
-    if (!running) {
-      startPeriodicSensorReading();
-      running = true;
-      notifyStateChanges(true);
-    }
-  }
-
-  /**
-   * Stop simulating the sensor node's operation.
-   */
-  public void stop() {
-    if (running) {
-      Logger.info("-- Stopping simulation of node " + id);
-      stopPeriodicSensorReading();
-      running = false;
-      notifyStateChanges(false);
-    }
-  }
-
-  /**
-   * Check whether the node is currently running.
-   *
-   * @return True if it is in a running-state, false otherwise
-   */
-  public boolean isRunning() {
-    return running;
-  }
-
-  private void startPeriodicSensorReading() {
-    sensorReadingTimer = new Timer();
-    TimerTask newSensorValueTask = new TimerTask() {
-      @Override
-      public void run() {
-        generateNewSensorValues();
-      }
-    };
-    long randomStartDelay = random.nextLong(SENSING_DELAY);
-    sensorReadingTimer.scheduleAtFixedRate(newSensorValueTask, randomStartDelay, SENSING_DELAY);
-  }
-
-  private void stopPeriodicSensorReading() {
-    if (sensorReadingTimer != null) {
-      sensorReadingTimer.cancel();
-    }
-  }
-
-  /**
-   * Generate new sensor values and send a notification to all listeners.
-   */
-    public void generateNewSensorValues() {
-      Logger.infoNoNewline("Node #" + id);
-      addRandomNoiseToSensors();
-      notifySensorChanges();
-      debugPrint();
-
-      if (socketWriter != null) {
-        try {
-          JSONObject sensorActuatorData = createJSONObject();
-          socketWriter.println(sensorActuatorData);
-          Logger.info("Node " + id + " sent sensor data to server." + sensorActuatorData);
-        } catch (Exception e) {
-          Logger.error("Failed to send sensor data for node " + id + ": " + e.getMessage());
+    /**
+     * Add sensors to the node.
+     *
+     * @param template The template to use for the sensors. The template will be cloned.
+     *                 This template defines the type of sensors, the value range, value
+     *                 generation algorithms, etc.
+     * @param n        The number of sensors to add to the node.
+     */
+    public void addSensors(Sensor template, int n) {
+        if (template == null) {
+            throw new IllegalArgumentException("Sensor template is missing");
         }
-      }
-  }
+        String type = template.getType();
+        if (type == null || type.isEmpty()) {
+            throw new IllegalArgumentException("Sensor type missing");
+        }
+        if (n <= 0) {
+            throw new IllegalArgumentException("Can't add a negative number of sensors");
+        }
 
-  private JSONObject createJSONObject() {
-    JSONObject sensorActuatorData = new JSONObject();
-    sensorActuatorData.put("id", id);
-
-    JSONArray sensorData = new JSONArray();
-    for (Sensor sensor : sensors) {
-      JSONObject sensorDataObj = new JSONObject();
-      sensorDataObj.put("type", sensor.getType());
-      sensorDataObj.put("value", sensor.getReading().getValue());
-      sensorDataObj.put("unit", sensor.getReading().getUnit());
-      sensorData.put(sensorDataObj);
-    }
-    sensorActuatorData.put("sensors", sensorData);
-
-    JSONArray actuatorData = new JSONArray();
-    for (Actuator actuator : actuators) {
-      JSONObject actuatorDataObj = new JSONObject();
-      actuatorDataObj.put("id", actuator.getId());
-      actuatorDataObj.put("type", actuator.getType());
-      actuatorDataObj.put("status", actuator.isOn() ? "on" : "off");
-      actuatorData.put(actuatorDataObj);
-    }
-    sensorActuatorData.put("actuators", actuatorData);
-    return sensorActuatorData;
-  }
-
-  private void addRandomNoiseToSensors() {
-    for (Sensor sensor : sensors) {
-      sensor.addRandomNoise();
-    }
-  }
-
-  private void debugPrint() {
-    for (Sensor sensor : sensors) {
-      Logger.infoNoNewline(" " + sensor.getReading().getFormatted());
-    }
-    Logger.infoNoNewline(" :");
-    actuators.debugPrint();
-    Logger.info("");
-  }
-
-  /**
-   * Toggle an actuator attached to this device.
-   *
-   * @param actuatorId The ID of the actuator to toggle
-   * @throws IllegalArgumentException If no actuator with given configuration is found on this node
-   */
-  public void toggleActuator(int actuatorId) {
-    Actuator actuator = getActuator(actuatorId);
-    if (actuator == null) {
-      throw new IllegalArgumentException("actuator[" + actuatorId + "] not found on node " + id);
-    }
-    actuator.toggle();
-  }
-
-  private Actuator getActuator(int actuatorId) {
-    return actuators.get(actuatorId);
-  }
-
-  private void notifySensorChanges() {
-    for (SensorListener listener : sensorListeners) {
-      listener.sensorsUpdated(sensors);
-    }
-  }
-
-  @Override
-  public void actuatorUpdated(int nodeId, Actuator actuator) {
-    actuator.applyImpact(this);
-    notifyActuatorChange(actuator);
-  }
-
-  private void notifyActuatorChange(Actuator actuator) {
-    String onOff = actuator.isOn() ? "ON" : "off";
-    Logger.info(" => " + actuator.getType() + " on node " + id + " " + onOff);
-    for (ActuatorListener listener : actuatorListeners) {
-      listener.actuatorUpdated(id, actuator);
-    }
-  }
-
-
-  /**
-   * Notify the listeners that the state of this node has changed.
-   *
-   * @param isReady When true, let them know that this node is ready;
-   *                when false - that this node is shut down
-   */
-  private void notifyStateChanges(boolean isReady) {
-    Logger.info("Notify state changes for node " + id);
-    for (NodeStateListener listener : stateListeners) {
-      if (isReady) {
-        listener.onNodeReady(this);
-      } else {
-        listener.onNodeStopped(this);
-      }
-    }
-  }
-
-  /**
-   * An actuator has been turned on or off. Apply an impact from it to all sensors of given type.
-   *
-   * @param sensorType The type of sensors affected
-   * @param impact     The impact to apply
-   */
-  public void applyActuatorImpact(String sensorType, double impact) {
-    for (Sensor sensor : sensors) {
-      if (sensor.getType().equals(sensorType)) {
-        sensor.applyImpact(impact);
-      }
-    }
-  }
-
-  /**
-   * Get all the sensors available on the device.
-   *
-   * @return List of all the sensors
-   */
-  public List<Sensor> getSensors() {
-    return sensors;
-  }
-
-  /**
-   * Get all the actuators available on the node.
-   *
-   * @return A collection of the actuators
-   */
-  public ActuatorCollection getActuators() {
-    return actuators;
-  }
-
-  @Override
-  public void onCommunicationChannelClosed() {
-    Logger.info("Communication channel closed for node " + id);
-    stop();
-  }
-
-  /**
-   * Set an actuator to a desired state.
-   *
-   * @param actuatorId ID of the actuator to set.
-   * @param on         Whether it should be on (true) or off (false)
-   */
-  public void setActuator(int actuatorId, boolean on) {
-    Actuator actuator = getActuator(actuatorId);
-    if (actuator != null) {
-      actuator.set(on);
-    }
-  }
-
-  /**
-   * Set all actuators to desired state.
-   *
-   * @param on Whether the actuators should be on (true) or off (false)
-   */
-  public void setAllActuators(boolean on) {
-    for (Actuator actuator : actuators) {
-      actuator.set(on);
-    }
-  }
-
-  public void connectToServer(String serverAddress, int portNumber) {
-    try {
-      this.serverAddress = serverAddress;
-      this.portNumber = portNumber;
-      socket = new Socket(serverAddress, portNumber);
-      socketReader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-      socketWriter = new PrintWriter(socket.getOutputStream(), true);
-
-      String handshakeMessage = "SENSOR:" + id;
-      socketWriter.println(handshakeMessage);
-      
-      Logger.info("Node " + getId() + " connected to " + serverAddress + ", " + portNumber);
-
-    } catch (IOException e){
-      Logger.error("Failed to connect node" + getId() + " to server:" + e.getMessage());
+        for (int i = 0; i < n; ++i) {
+            sensors.add(template.createClone());
+        }
     }
 
-  }
+    /**
+     * Add an actuator to the node.
+     *
+     * @param actuator The actuator to add
+     */
+    public void addActuator(Actuator actuator) {
+        actuator.setListener(this);
+        actuators.add(actuator);
+        Logger.info("Created " + actuator.getType() + "[" + actuator.getId() + "] on node " + id);
+    }
+
+    /**
+     * Register a new listener for sensor updates.
+     *
+     * @param listener The listener which will get notified every time sensor values change.
+     */
+    public void addSensorListener(SensorListener listener) {
+        if (!sensorListeners.contains(listener)) {
+            sensorListeners.add(listener);
+        }
+    }
+
+    /**
+     * Register a new listener for actuator updates.
+     *
+     * @param listener The listener which will get notified every time actuator state changes.
+     */
+    public void addActuatorListener(ActuatorListener listener) {
+        if (!actuatorListeners.contains(listener)) {
+            actuatorListeners.add(listener);
+        }
+    }
+
+    /**
+     * Register a new listener for node state updates.
+     *
+     * @param listener The listener which will get notified when the state of this node changes
+     */
+    public void addStateListener(NodeStateListener listener) {
+        if (!stateListeners.contains(listener)) {
+            stateListeners.add(listener);
+        }
+    }
+
+
+    /**
+     * Start simulating the sensor node's operation.
+     */
+    public void start() {
+        if (!running) {
+            startPeriodicSensorReading();
+            running = true;
+            notifyStateChanges(true);
+        }
+    }
+
+    /**
+     * Stop simulating the sensor node's operation.
+     */
+    public void stop() {
+        if (running) {
+            Logger.info("-- Stopping simulation of node " + id);
+            stopPeriodicSensorReading();
+            running = false;
+            notifyStateChanges(false);
+        }
+    }
+
+    /**
+     * Check whether the node is currently running.
+     *
+     * @return True if it is in a running-state, false otherwise
+     */
+    public boolean isRunning() {
+        return running;
+    }
+
+    private void startPeriodicSensorReading() {
+        sensorReadingTimer = new Timer();
+        TimerTask newSensorValueTask = new TimerTask() {
+            @Override
+            public void run() {
+                generateNewSensorValues();
+            }
+        };
+        long randomStartDelay = random.nextLong(SENSING_DELAY);
+        sensorReadingTimer.scheduleAtFixedRate(newSensorValueTask, randomStartDelay, SENSING_DELAY);
+    }
+
+    private void stopPeriodicSensorReading() {
+        if (sensorReadingTimer != null) {
+            sensorReadingTimer.cancel();
+        }
+    }
+
+    /**
+     * Generate new sensor values and send a notification to all listeners.
+     * Also send the new values to the server.
+     */
+    public void generateNewSensorValues() {
+        Logger.infoNoNewline("Node #" + id);
+        addRandomNoiseToSensors();
+        notifySensorChanges();
+        debugPrint();
+
+        // creates a json object from the new values and sends them to the server,
+        // if a connection is established
+        if (socketWriter != null) {
+            try {
+                JSONObject sensorActuatorData = createJSONObject();
+                socketWriter.println(sensorActuatorData);
+                Logger.info("Node " + id + " sent sensor data to server." + sensorActuatorData);
+            } catch (Exception e) {
+                Logger.error("Failed to send sensor data for node " + id + ": " + e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * creates a json object that represents the state of the node.
+     * both sensor readings and actuator states are being included
+     *
+     * @return json object including the node's data
+     */
+    private JSONObject createJSONObject() {
+        JSONObject sensorActuatorData = new JSONObject();
+        sensorActuatorData.put("id", id);
+
+        JSONArray sensorData = new JSONArray();
+        for (Sensor sensor : sensors) {
+            JSONObject sensorDataObj = new JSONObject();
+            sensorDataObj.put("type", sensor.getType());
+            sensorDataObj.put("value", sensor.getReading().getValue());
+            sensorDataObj.put("unit", sensor.getReading().getUnit());
+            sensorData.put(sensorDataObj);
+        }
+        sensorActuatorData.put("sensors", sensorData);
+
+        JSONArray actuatorData = new JSONArray();
+        for (Actuator actuator : actuators) {
+            JSONObject actuatorDataObj = new JSONObject();
+            actuatorDataObj.put("id", actuator.getId());
+            actuatorDataObj.put("type", actuator.getType());
+            actuatorDataObj.put("status", actuator.isOn() ? "on" : "off");
+            actuatorData.put(actuatorDataObj);
+        }
+        sensorActuatorData.put("actuators", actuatorData);
+        return sensorActuatorData;
+    }
+
+    private void addRandomNoiseToSensors() {
+        for (Sensor sensor : sensors) {
+            sensor.addRandomNoise();
+        }
+    }
+
+    private void debugPrint() {
+        for (Sensor sensor : sensors) {
+            Logger.infoNoNewline(" " + sensor.getReading().getFormatted());
+        }
+        Logger.infoNoNewline(" :");
+        actuators.debugPrint();
+        Logger.info("");
+    }
+
+    /**
+     * Toggle an actuator attached to this device.
+     *
+     * @param actuatorId The ID of the actuator to toggle
+     * @throws IllegalArgumentException If no actuator with given configuration is found on this node
+     */
+    public void toggleActuator(int actuatorId) {
+        Actuator actuator = getActuator(actuatorId);
+        if (actuator == null) {
+            throw new IllegalArgumentException("actuator[" + actuatorId + "] not found on node " + id);
+        }
+        actuator.toggle();
+    }
+
+    private Actuator getActuator(int actuatorId) {
+        return actuators.get(actuatorId);
+    }
+
+    private void notifySensorChanges() {
+        for (SensorListener listener : sensorListeners) {
+            listener.sensorsUpdated(sensors);
+        }
+    }
+
+    @Override
+    public void actuatorUpdated(int nodeId, Actuator actuator) {
+        actuator.applyImpact(this);
+        notifyActuatorChange(actuator);
+    }
+
+    private void notifyActuatorChange(Actuator actuator) {
+        String onOff = actuator.isOn() ? "ON" : "off";
+        Logger.info(" => " + actuator.getType() + " on node " + id + " " + onOff);
+        for (ActuatorListener listener : actuatorListeners) {
+            listener.actuatorUpdated(id, actuator);
+        }
+    }
+
+
+    /**
+     * Notify the listeners that the state of this node has changed.
+     *
+     * @param isReady When true, let them know that this node is ready;
+     *                when false - that this node is shut down
+     */
+    private void notifyStateChanges(boolean isReady) {
+        Logger.info("Notify state changes for node " + id);
+        for (NodeStateListener listener : stateListeners) {
+            if (isReady) {
+                listener.onNodeReady(this);
+            } else {
+                listener.onNodeStopped(this);
+            }
+        }
+    }
+
+    /**
+     * An actuator has been turned on or off. Apply an impact from it to all sensors of given type.
+     *
+     * @param sensorType The type of sensors affected
+     * @param impact     The impact to apply
+     */
+    public void applyActuatorImpact(String sensorType, double impact) {
+        for (Sensor sensor : sensors) {
+            if (sensor.getType().equals(sensorType)) {
+                sensor.applyImpact(impact);
+            }
+        }
+    }
+
+    /**
+     * Get all the sensors available on the device.
+     *
+     * @return List of all the sensors
+     */
+    public List<Sensor> getSensors() {
+        return sensors;
+    }
+
+    /**
+     * Get all the actuators available on the node.
+     *
+     * @return A collection of the actuators
+     */
+    public ActuatorCollection getActuators() {
+        return actuators;
+    }
+
+    @Override
+    public void onCommunicationChannelClosed() {
+        Logger.info("Communication channel closed for node " + id);
+        stop();
+    }
+
+    /**
+     * Set an actuator to a desired state.
+     *
+     * @param actuatorId ID of the actuator to set.
+     * @param on         Whether it should be on (true) or off (false)
+     */
+    public void setActuator(int actuatorId, boolean on) {
+        Actuator actuator = getActuator(actuatorId);
+        if (actuator != null) {
+            actuator.set(on);
+        }
+    }
+
+    /**
+     * Set all actuators to desired state.
+     *
+     * @param on Whether the actuators should be on (true) or off (false)
+     */
+    public void setAllActuators(boolean on) {
+        for (Actuator actuator : actuators) {
+            actuator.set(on);
+        }
+    }
+
+    /**
+     * connect the socket to the server and send the handshake message containing the nodes ID
+     * initialize input and output streams
+     *
+     * @param serverAddress address of the server
+     * @param portNumber    port number of the server
+     */
+    public void connectToServer(String serverAddress, int portNumber) {
+        try {
+            socket = new Socket(serverAddress, portNumber);
+            socketReader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            socketWriter = new PrintWriter(socket.getOutputStream(), true);
+
+            // send handshake message
+            String handshakeMessage = "SENSOR:" + id;
+            socketWriter.println(handshakeMessage);
+
+            Logger.info("Node " + getId() + " connected to " + serverAddress + ", " + portNumber);
+
+            // begin listening to actuator commands
+            receiveActuatorUpdates();
+        } catch (IOException e) {
+            Logger.error("Failed to connect node" + getId() + " to server:" + e.getMessage());
+        }
+
+    }
+
+    /**
+     * starts a thread which continuously listens to actuator commands being sent from the server
+     */
+    private void receiveActuatorUpdates() {
+        Logger.info("Receive actuator updates method reached.");
+        new Thread(() -> {
+            String message;
+            try {
+                while ((message = socketReader.readLine()) != null) {
+                    Logger.info("Sensor node " + id + " received actuator command: " + message);
+                    processActuatorCommand(message);
+                }
+            } catch (IOException e) {
+                Logger.error("Error reading actuator update command from server: " + e.getMessage());
+            }
+        }).start();
+    }
+
+    /**
+     * processes a received actuator command and changes the actuators status accordingly
+     *
+     * @param message json string that contains the command
+     */
+    private void processActuatorCommand(String message) {
+        JSONObject commandJSONObj = new JSONObject(message);
+        int actuatorID = commandJSONObj.getInt("actuator");
+        boolean actuatorStatus = commandJSONObj.getBoolean("status");
+        setActuator(actuatorID, actuatorStatus);
+        Logger.info("CHANGED ACTUATOR STATUS of actuator: " + actuatorID + ", status: " + getActuator(actuatorID).isOn());
+    }
+
 }

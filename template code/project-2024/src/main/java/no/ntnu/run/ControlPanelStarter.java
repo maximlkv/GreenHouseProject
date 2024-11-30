@@ -4,7 +4,6 @@ import no.ntnu.controlpanel.CommunicationChannel;
 import no.ntnu.controlpanel.ControlPanelCommunicationChannel;
 import no.ntnu.controlpanel.ControlPanelLogic;
 import no.ntnu.controlpanel.FakeCommunicationChannel;
-import no.ntnu.greenhouse.GreenhouseSimulator;
 import no.ntnu.gui.controlpanel.ControlPanelApplication;
 import no.ntnu.tools.Logger;
 
@@ -14,104 +13,113 @@ import no.ntnu.tools.Logger;
  * debugger (JavaFX modules not found)
  */
 public class ControlPanelStarter {
-  private final boolean fake;
-  public ControlPanelStarter(boolean fake) {
-    this.fake = fake;
-  }
+    private final boolean fake;
 
-  /**
-   * Entrypoint for the application.
-   *
-   * @param args Command line arguments, only the first one of them used: when it is "fake",
-   *             emulate fake events, when it is either something else or not present,
-   *             use real socket communication. Go to Run → Edit Configurations.
-   *             Add "fake" to the Program Arguments field.
-   *             Apply the changes.
-   */
-  public static void main(String[] args) {
-    boolean fake = false;// make it true to test in fake mode
-    if (args.length == 1 && "fake".equals(args[0])) {
-      fake = true;
-      Logger.info("Using FAKE events");
-    }
-    ControlPanelStarter starter = new ControlPanelStarter(fake);
-    starter.start();
-  }
-
-  private void start() {
-
-    GreenhouseSimulator greenhouseSimulator = new GreenhouseSimulator(fake);
-    greenhouseSimulator.initialize();
-    greenhouseSimulator.start(); // Start the greenhouse simulation
-    Logger.info("GreenhouseSimulator started");
-
-    ControlPanelLogic logic = new ControlPanelLogic();
-    CommunicationChannel channel = initiateCommunication(logic, fake);
-    ControlPanelApplication.startApp(logic, channel);
-    // This code is reached only after the GUI-window is closed
-    Logger.info("Exiting the control panel application");
-
-    greenhouseSimulator.stop();
-    stopCommunication();
-
-  }
-
-  private CommunicationChannel initiateCommunication(ControlPanelLogic logic, boolean fake) {
-    CommunicationChannel channel;
-    if (fake) {
-      channel = initiateFakeSpawner(logic);
-    } else {
-      channel = initiateSocketCommunication(logic);
-    }
-    return channel;
-  }
-
-  private CommunicationChannel initiateSocketCommunication(ControlPanelLogic logic) {
-    String serverAddress = "localhost";
-    int portNumber = 1238;
-    ControlPanelCommunicationChannel communicationChannel = new ControlPanelCommunicationChannel(logic, serverAddress, portNumber);
-    if(communicationChannel.open()) {
-      System.out.println();
-      communicationChannel.listenForSensorData();
-      logic.setCommunicationChannel(communicationChannel);
-      return communicationChannel;
-    } else {
-      Logger.error("Failed to establish connection to server.");
-      return null;
+    public ControlPanelStarter(boolean fake) {
+        this.fake = fake;
     }
 
-  }
+    /**
+     * Entrypoint for the application.
+     *
+     * @param args Command line arguments, only the first one of them used: when it is "fake",
+     *             emulate fake events, when it is either something else or not present,
+     *             use real socket communication. Go to Run → Edit Configurations.
+     *             Add "fake" to the Program Arguments field.
+     *             Apply the changes.
+     */
+    public static void main(String[] args) {
+        boolean fake = false;// make it true to test in fake mode
+        if (args.length == 1 && "fake".equals(args[0])) {
+            fake = true;
+            Logger.info("Using FAKE events");
+        }
+        ControlPanelStarter starter = new ControlPanelStarter(fake);
+        starter.start();
+    }
 
-  private CommunicationChannel initiateFakeSpawner(ControlPanelLogic logic) {
-    // Here we pretend that some events will be received with a given delay
-    FakeCommunicationChannel spawner = new FakeCommunicationChannel(logic);
-    logic.setCommunicationChannel(spawner);
-    final int START_DELAY = 5;
-    spawner.spawnNode("4;3_window", START_DELAY);
-    spawner.spawnNode("1", START_DELAY + 1);
-    spawner.spawnNode("1", START_DELAY + 2);
-    spawner.advertiseSensorData("4;temperature=27.4 °C,temperature=26.8 °C,humidity=80 %", START_DELAY + 2);
-    spawner.spawnNode("8;2_heater", START_DELAY + 3);
-    spawner.advertiseActuatorState(4, 1, true, START_DELAY + 3);
-    spawner.advertiseActuatorState(4, 1, false, START_DELAY + 4);
-    spawner.advertiseActuatorState(4, 1, true, START_DELAY + 5);
-    spawner.advertiseActuatorState(4, 2, true, START_DELAY + 5);
-    spawner.advertiseActuatorState(4, 1, false, START_DELAY + 6);
-    spawner.advertiseActuatorState(4, 2, false, START_DELAY + 6);
-    spawner.advertiseActuatorState(4, 1, true, START_DELAY + 7);
-    spawner.advertiseActuatorState(4, 2, true, START_DELAY + 8);
-    spawner.advertiseSensorData("4;temperature=22.4 °C,temperature=26.0 °C,humidity=81 %", START_DELAY + 9);
-    spawner.advertiseSensorData("1;humidity=80 %,humidity=82 %", START_DELAY + 10);
-    spawner.advertiseRemovedNode(8, START_DELAY + 11);
-    spawner.advertiseRemovedNode(8, START_DELAY + 12);
-    spawner.advertiseSensorData("1;temperature=25.4 °C,temperature=27.0 °C,humidity=67 %", START_DELAY + 13);
-    spawner.advertiseSensorData("4;temperature=25.4 °C,temperature=27.0 °C,humidity=82 %", START_DELAY + 14);
-    spawner.advertiseSensorData("4;temperature=25.4 °C,temperature=27.0 °C,humidity=82 %", START_DELAY + 16);
-    return spawner;
-  }
+    private void start() {
 
-  private void stopCommunication() {
-    // TODO - here you stop the TCP/UDP socket communication
-  }
+
+        ControlPanelLogic logic = new ControlPanelLogic();
+        CommunicationChannel channel = initiateCommunication(logic, fake);
+        ControlPanelApplication.startApp(logic, channel);
+        // This code is reached only after the GUI-window is closed
+        Logger.info("Exiting the control panel application");
+
+        //greenhouseSimulator.stop();
+        stopCommunication();
+
+    }
+
+    private CommunicationChannel initiateCommunication(ControlPanelLogic logic, boolean fake) {
+        CommunicationChannel channel;
+        if (fake) {
+            channel = initiateFakeSpawner(logic);
+        } else {
+            channel = initiateSocketCommunication(logic);
+        }
+        return channel;
+    }
+
+    /**
+     * Sets up connection to Server. Creates a Communication Channel and if its opened successfully the communication
+     * Channel gets passed to the Control Panel logic.
+     *
+     * @param logic ControlPanelLogic object which receives the communication channel
+     * @return the CommunicationChannel, will later be used to start the ControlPanelApplication
+     */
+    private CommunicationChannel initiateSocketCommunication(ControlPanelLogic logic) {
+        String serverAddress = "localhost";
+        int portNumber = 1238;
+        ControlPanelCommunicationChannel communicationChannel = new ControlPanelCommunicationChannel(logic, serverAddress, portNumber);
+        if (communicationChannel.open()) {
+            System.out.println();
+            logic.setCommunicationChannel(communicationChannel);
+            return communicationChannel;
+        } else {
+            Logger.error("Failed to establish connection to server.");
+            return null;
+        }
+
+    }
+
+    /**
+     * Class for running the Control Panel without proper TCP connection. Does not get used by us.
+     *
+     * @param logic
+     * @return
+     */
+    private CommunicationChannel initiateFakeSpawner(ControlPanelLogic logic) {
+        // Here we pretend that some events will be received with a given delay
+        FakeCommunicationChannel spawner = new FakeCommunicationChannel(logic);
+        logic.setCommunicationChannel(spawner);
+        final int START_DELAY = 5;
+        spawner.spawnNode("4;3_window", START_DELAY);
+        spawner.spawnNode("1", START_DELAY + 1);
+        spawner.spawnNode("1", START_DELAY + 2);
+        spawner.advertiseSensorData("4;temperature=27.4 °C,temperature=26.8 °C,humidity=80 %", START_DELAY + 2);
+        spawner.spawnNode("8;2_heater", START_DELAY + 3);
+        spawner.advertiseActuatorState(4, 1, true, START_DELAY + 3);
+        spawner.advertiseActuatorState(4, 1, false, START_DELAY + 4);
+        spawner.advertiseActuatorState(4, 1, true, START_DELAY + 5);
+        spawner.advertiseActuatorState(4, 2, true, START_DELAY + 5);
+        spawner.advertiseActuatorState(4, 1, false, START_DELAY + 6);
+        spawner.advertiseActuatorState(4, 2, false, START_DELAY + 6);
+        spawner.advertiseActuatorState(4, 1, true, START_DELAY + 7);
+        spawner.advertiseActuatorState(4, 2, true, START_DELAY + 8);
+        spawner.advertiseSensorData("4;temperature=22.4 °C,temperature=26.0 °C,humidity=81 %", START_DELAY + 9);
+        spawner.advertiseSensorData("1;humidity=80 %,humidity=82 %", START_DELAY + 10);
+        spawner.advertiseRemovedNode(8, START_DELAY + 11);
+        spawner.advertiseRemovedNode(8, START_DELAY + 12);
+        spawner.advertiseSensorData("1;temperature=25.4 °C,temperature=27.0 °C,humidity=67 %", START_DELAY + 13);
+        spawner.advertiseSensorData("4;temperature=25.4 °C,temperature=27.0 °C,humidity=82 %", START_DELAY + 14);
+        spawner.advertiseSensorData("4;temperature=25.4 °C,temperature=27.0 °C,humidity=82 %", START_DELAY + 16);
+        return spawner;
+    }
+
+    private void stopCommunication() {
+        // TODO - here you stop the TCP/UDP socket communication
+    }
 
 }

@@ -2,79 +2,87 @@ package no.ntnu.connection;
 
 import java.io.IOException;
 import java.net.Socket;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import no.ntnu.controlpanel.SensorActuatorNodeInfo;
 import no.ntnu.greenhouse.Actuator;
-import no.ntnu.greenhouse.Sensor;
 import no.ntnu.tools.Logger;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
 /**
- * The NodeHandler class manages communication between a client socket and a Server.
- * It handles the initialization and setup required to handle nodes information commands for the Server.
+ * the node handler handles the communication between a Control panel and the sensor/actuator nodes which it monitors.
+ * it makes sure the messages are sent to the appropriate receiver.
  */
 public class NodeHandler {
+    // map to maintain the sensor/actuator nodes
     private static final ConcurrentHashMap<Integer, NodeConnection> sensorNodesMap = new ConcurrentHashMap<>();
     private static NodeConnection controlNode = null;
+    //thread pool is used to make sure each node's communication can run concurrently
     private final ExecutorService nodeThreadPool = Executors.newFixedThreadPool(6);
     private final Server server;
 
+    /**
+     * Constructor for node handler class
+     *
+     * @param server the server that created the node handler
+     */
     public NodeHandler(Server server) {
         this.server = server;
     }
 
+
+    /**
+     * takes in control node and creates a NodeConnection object to store its socket, reader and writer
+     *
+     * @param socket socket of this control panel
+     */
     public void addControlNode(Socket socket) {
         controlNode = new NodeConnection(socket);
     }
 
+    /**
+     * takes in sensor/actuator node, creates a NodeConnection object and stores it in a map, with
+     * its id being the key
+     *
+     * @param sensorNodeID
+     * @param socket
+     */
     public void addSensorNode(Integer sensorNodeID, Socket socket) {
         NodeConnection sensorNode = new NodeConnection(socket);
         sensorNodesMap.put(sensorNodeID, sensorNode);
         Logger.info("Added Sensor node to map: " + sensorNodeID);
     }
 
-
+    /**
+     * starts the communication threads for every node
+     */
     public void startCommunication() {
         Logger.info("Attempting to start communication");
 
+        // start thread for sending sensor data to the control panel
         for (Integer sensorNodeID : sensorNodesMap.keySet()) {
             nodeThreadPool.execute(() -> sensorDataFlow(sensorNodeID, sensorNodesMap.get(sensorNodeID)));
         }
-        nodeThreadPool.execute(() -> controlCommandFlow());
+        // start thread for the sending control panel commands to sensor/actuator nodes
+        nodeThreadPool.execute(this::controlCommandFlow);
 
     }
 
-    private void controlCommandFlow() {
-        try {
-            String message;
-            while ((message = controlNode.getSocketReader().readLine()) != null) {
-                Logger.info("Received actuator command from control panel: " + message);
-                forwardActuatorCommand(message);
-            }
-        }  catch (IOException e) {
-            Logger.error("Error reading actuator command on the server: " + e.getMessage());
-        }
-    }
-
-    private void forwardActuatorCommand(String message) {
-        controlNode.getSocketWriter().println(message);
-    }
-
+    /**
+     * forwards sensor data from a sensor/actuator node to the control panel
+     *
+     * @param sensorID             the id of the sensor/actuator node
+     * @param sensorNodeConnection NodeConnection object corresponding to the sensor/actuator node
+     */
     private void sensorDataFlow(int sensorID, NodeConnection sensorNodeConnection) {
         try {
             String message;
             while ((message = sensorNodeConnection.getSocketReader().readLine()) != null) {
                 Logger.info("Received message from sensor node " + sensorID + ": " + message);
                 //Save as node in the server
-                SensorActuatorNodeInfo sensorActuatorNodeInfo = new SensorActuatorNodeInfo(sensorID);
-                updateNodeInfo(sensorActuatorNodeInfo,message);
-                server.addSensorDataNode(sensorActuatorNodeInfo);
                 controlNode.getSocketWriter().println(message);
             }
         } catch (IOException e) {
@@ -82,129 +90,43 @@ public class NodeHandler {
         }
     }
 
-
-    /**@Override
-    public void run() {
+    /**
+     * manages the forwarding of received commands from the control panel to a sensor node
+     */
+    private void controlCommandFlow() {
         try {
-            sensorReader = new BufferedReader(new InputStreamReader(sensorSocket.getInputStream()));
-            sensorWriter = new PrintWriter(sensorSocket.getOutputStream(), true);
-            controlReader = new BufferedReader(new InputStreamReader(controlSocket.getInputStream()));
-            controlWriter = new PrintWriter(controlSocket.getOutputStream(), true);
-        } catch(IOException e) {
-            Logger.error("Issue setting up input and output streams for Nodes:" + e.getMessage());
-        }
-
-        nodeThreadPool.execute(() -> receiveAndRelaySensorData());
-        nodeThreadPool.execute(() -> receiveAndRelayControlCommands());
-    }
-
-
-
-    private void receiveAndRelaySensorData() {
-        Logger.info("I think this works: receiveAndRelaySensorData");
-        try {
-            String sensorDataMessage;
-            while ((sensorDataMessage = sensorReader.readLine()) != null) {
-                Logger.info("Received data from Sensor Node: " + sensorDataMessage);
-                handleSensorDataCommand(sensorDataMessage);
-
-                // Reenviar los datos al Control Node
-                controlWriter.println(sensorDataMessage);
-                Logger.info("Relayed data to Control Node");
+            Logger.info("waiting for control commands");
+            String message;
+            while ((message = controlNode.getSocketReader().readLine()) != null) {
+                Logger.info("Received actuator command from control panel: " + message);
+                forwardActuatorCommand(message);
             }
         } catch (IOException e) {
-            Logger.error("Error while receiving or relaying sensor data: " + e.getMessage());
-        } finally {
-            closeConnection();
+            Logger.error("Error reading actuator command on the server: " + e.getMessage());
+        }
+    }
+
+    /**
+     * forwards a command from the control panel the appropriate sensor/actuator node
+     *
+     * @param message command from control panel
+     */
+    private void forwardActuatorCommand(String message) {
+        JSONObject msg = new JSONObject(message);
+        int nodeID = msg.getInt("nodeId");
+        if (sensorNodesMap.containsKey(nodeID)) {
+            sensorNodesMap.get(nodeID).getSocketWriter().println(msg);
+        } else {
+            Logger.error("Invalid Sensor node id:" + nodeID + ". Actuator command cannot be forwarded.");
         }
     }
 
 
-    private void receiveAndRelayControlCommands() {
-        Logger.info("I think this still works.");
-        try {
-            String commandMessage;
-            while ((commandMessage = controlReader.readLine()) != null) {
-                Logger.info("Received command from Control Node: " + commandMessage);
-                // Reenviar el comando al Sensor Node
-                sensorWriter.println(commandMessage);
-                Logger.info("Relayed command to Sensor Node");
-            }
-        } catch (IOException e) {
-            Logger.error("Error while receiving or relaying commands: " + e.getMessage());
-        } finally {
-            closeConnection();
-        }
-    }
-
-    private void handleSensorDataCommand(String commandMessage) {
-        JSONObject jsonObject = new JSONObject(commandMessage);
-        int nodeId = jsonObject.getInt("id");
-        SensorActuatorNodeInfo sensorActuatorNodeInfo = new SensorActuatorNodeInfo(nodeId);
-
-        // Sensor Data updates.
-        List<SensorReading> sensors = parseSensorReadings(commandMessage);
-        for (SensorReading sensorReading : sensors) {
-            sensorActuatorNodeInfo.addSensor(sensorReading);
-        }
-        List<Actuator> actuators = parseActuators(commandMessage,sensorActuatorNodeInfo);
-        for (Actuator actuator : actuators) {
-            sensorActuatorNodeInfo.addActuator(actuator);
-        }
-        server.addSensorDataNode(sensorActuatorNodeInfo);
-    }
-
-    private List<Actuator> parseActuators(String commandMessage, SensorActuatorNodeInfo info) {
-        List<Actuator> actuators = new ArrayList<>();
-
-        JSONObject jsonObject = new JSONObject(commandMessage);
-        JSONArray actuatorsArray = jsonObject.getJSONArray("actuators");
-
-        for (int i = 0; i < actuatorsArray.length(); i++) {
-            JSONObject actuatorObject = actuatorsArray.getJSONObject(i);
-            String type = actuatorObject.getString("type");
-
-            Actuator actuator = new Actuator(type, info.getId());
-            actuators.add(actuator);
-        }
-
-        return actuators;
-    }
-
-    private List<SensorReading> parseSensorReadings(String commandMessage) {
-        List<SensorReading> sensorReadings = new ArrayList<>();
-        JSONObject jsonObject = new JSONObject(commandMessage);
-        JSONArray sensorsArray = jsonObject.getJSONArray("sensors");
-        for (int i = 0; i < sensorsArray.length(); i++) {
-            JSONObject sensorObject = sensorsArray.getJSONObject(i);
-
-            String type = sensorObject.getString("type");
-            double value = sensorObject.getDouble("value");
-            String unit = sensorObject.getString("unit");
-            sensorReadings.add(new SensorReading(type, value, unit));
-        }
-        return sensorReadings;
-    }
-*/
-
+    /**
+     * closes connection for all the nodes that are being managed
+     */
     private void closeConnection() {
         // TODO -- closing of connection for each NodeConnection
-    }
-
-    public void updateNodeInfo(SensorActuatorNodeInfo nodeInfo, String message){
-        JSONObject jsonObject = new JSONObject(message);
-        JSONArray actuatorsArray = jsonObject.getJSONArray("actuators");
-
-        for (int i = 0; i < actuatorsArray.length(); i++) {
-            JSONObject actuatorObject = actuatorsArray.getJSONObject(i);
-            String type = actuatorObject.getString("type");
-            int actuatorId = actuatorObject.getInt("id");
-            String status = actuatorObject.getString("status");
-
-            Actuator actuator = new Actuator(type, nodeInfo.getId(),actuatorId, status);
-            Logger.info("Adding actuator: " + actuator.getId() + " status:" + actuator.isOn());
-            nodeInfo.addActuator(actuator);
-        }
     }
 
 

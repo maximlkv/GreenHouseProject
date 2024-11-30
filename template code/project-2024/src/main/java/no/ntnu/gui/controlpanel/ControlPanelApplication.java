@@ -3,6 +3,8 @@ package no.ntnu.gui.controlpanel;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import javafx.animation.PauseTransition;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.geometry.Pos;
@@ -12,6 +14,7 @@ import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
+import javafx.util.Duration;
 import no.ntnu.controlpanel.CommunicationChannel;
 import no.ntnu.controlpanel.ControlPanelLogic;
 import no.ntnu.controlpanel.SensorActuatorNodeInfo;
@@ -74,6 +77,12 @@ public class ControlPanelApplication extends Application implements GreenhouseEv
     stage.show();
     logic.addListener(this);
     logic.setCommunicationChannelListener(this);
+
+    // added a small delay before allowing the communication channel to pull sensor data,
+    // to make sure the gui is properly showing
+    PauseTransition delay = new PauseTransition(Duration.seconds(1));
+    delay.setOnFinished(event -> channel.setGuiReady());
+    delay.play();
   }
 
   private static Label createEmptyContent() {
@@ -171,6 +180,7 @@ public class ControlPanelApplication extends Application implements GreenhouseEv
     if (nodeTab == null) {
       nodeInfos.put(nodeInfo.getId(), nodeInfo);
       nodeTabPane.getTabs().add(createNodeTab(nodeInfo));
+      Logger.info("Node " + nodeInfo.getId() + " added");
     } else {
       Logger.info("Duplicate node spawned, ignore it");
     }
