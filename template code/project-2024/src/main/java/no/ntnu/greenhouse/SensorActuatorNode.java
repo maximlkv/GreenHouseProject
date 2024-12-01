@@ -154,6 +154,7 @@ public class SensorActuatorNode implements ActuatorListener, CommunicationChanne
             stopPeriodicSensorReading();
             running = false;
             notifyStateChanges(false);
+            disconnectFromServer();
         }
     }
 
@@ -429,5 +430,22 @@ public class SensorActuatorNode implements ActuatorListener, CommunicationChanne
         setActuator(actuatorID, actuatorStatus);
         Logger.info("CHANGED ACTUATOR STATUS of actuator: " + actuatorID + ", status: " + getActuator(actuatorID).isOn());
     }
+
+    private void disconnectFromServer() {
+        try {
+            if (socketReader != null) {
+                socketReader.close();
+            }
+            if (socketWriter != null) {
+                socketWriter.close();
+            }
+            socket.close();
+            Logger.info("Node " + id + " disconnected from the server.");
+        } catch (IOException e) {
+            Logger.error("Error closing connection to server: " + e.getMessage());
+        }
+    }
+
+
 
 }

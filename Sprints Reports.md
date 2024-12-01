@@ -12,7 +12,7 @@ Sprint 3: November 16, 2024 → November 23, 2024
 
 Sprint 4: November 23, 2024 → December 1, 2024
 
-A continuación dejamos la información detallada de cada sprint.
+
 
 ---
 
@@ -141,6 +141,8 @@ Sprint Number: #4
 - [x]  Bug: Fix Actuators id (They are sending the wrong id in the communication so are not being updated in the UI). Owner: Sol
 - [x]  Bug: Actuators should receive the message from server and send to Greenhouse. Owner: Maxim
 - [x]  Upload sprints reports to Github. Owner: Sol
+- [x]  Added functionality, that returns sensor nodes to server and makes them available for new connections, when control panel disconnects. Owner: Maxim
+- [x]  Write the communication Protocol. Owner: Maxim
 - [x]  Make video. Owner: Maxim
 
 ## Retrospective

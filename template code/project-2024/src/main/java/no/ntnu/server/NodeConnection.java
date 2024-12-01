@@ -1,4 +1,4 @@
-package no.ntnu.connection;
+package no.ntnu.server;
 
 import no.ntnu.tools.Logger;
 
@@ -14,6 +14,8 @@ import java.net.Socket;
  */
 public class NodeConnection {
 
+
+    private boolean isUnpaired;
     private final Socket socket;
     private PrintWriter socketWriter;
     private BufferedReader socketReader;
@@ -91,6 +93,14 @@ public class NodeConnection {
         }
 
         Logger.info("NodeConnection closed successfully.");
+    }
+
+    public boolean isUnpaired() {
+        return isUnpaired;
+    }
+
+    public void setUnpaired(boolean unpaired) {
+        isUnpaired = unpaired;
     }
 
 }

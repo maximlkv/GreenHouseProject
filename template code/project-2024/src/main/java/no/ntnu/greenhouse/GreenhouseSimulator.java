@@ -1,8 +1,6 @@
 package no.ntnu.greenhouse;
 
 import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
 import java.util.Map;
 
 import no.ntnu.listeners.greenhouse.NodeStateListener;
@@ -14,11 +12,9 @@ import no.ntnu.tools.Logger;
 public class GreenhouseSimulator {
     private final Map<Integer, SensorActuatorNode> nodes = new HashMap<>();
 
-    private final List<PeriodicSwitch> periodicSwitches = new LinkedList<>();
-    private final boolean fake;
 
     public static void main(String[] args) {
-        GreenhouseSimulator greenhouseSimulator = new GreenhouseSimulator(false);
+        GreenhouseSimulator greenhouseSimulator = new GreenhouseSimulator();
         greenhouseSimulator.initialize();
         greenhouseSimulator.start(); // Start the greenhouse simulation
         Logger.info("GreenhouseSimulator started");
@@ -26,12 +22,8 @@ public class GreenhouseSimulator {
 
     /**
      * Create a greenhouse simulator.
-     *
-     * @param fake When true, simulate a fake periodic events instead of creating
-     *             socket communication
      */
-    public GreenhouseSimulator(boolean fake) {
-        this.fake = fake;
+    public GreenhouseSimulator() {
     }
 
     /**
@@ -58,26 +50,16 @@ public class GreenhouseSimulator {
         for (SensorActuatorNode node : nodes.values()) {
             node.start();
         }
-        for (PeriodicSwitch periodicSwitch : periodicSwitches) {
-            periodicSwitch.start();
-        }
 
         Logger.info("Simulator started");
     }
 
-    private void initiateCommunication() {
-        if (fake) {
-            initiateFakePeriodicSwitches();
-        } else {
-            initiateRealCommunication();
-        }
-    }
 
     /**
      * Runs the connectToServer() method for every Node that has been created for this simulator.
      * Passes the sever and port number to the every node.
      */
-    private void initiateRealCommunication() {
+    private void initiateCommunication() {
         for (SensorActuatorNode node : nodes.values()) {
             // variables for TCP connection
             String serverAddress = "localhost";
@@ -86,30 +68,15 @@ public class GreenhouseSimulator {
         }
     }
 
-    private void initiateFakePeriodicSwitches() {
-        periodicSwitches.add(new PeriodicSwitch("Window DJ", nodes.get(1), 2, 20000));
-        periodicSwitches.add(new PeriodicSwitch("Heater DJ", nodes.get(2), 7, 8000));
-    }
-
     /**
      * Stop the simulation of the greenhouse - all the nodes in it.
      */
     public void stop() {
-        stopCommunication();
         for (SensorActuatorNode node : nodes.values()) {
             node.stop();
         }
     }
 
-    private void stopCommunication() {
-        if (fake) {
-            for (PeriodicSwitch periodicSwitch : periodicSwitches) {
-                periodicSwitch.stop();
-            }
-        } else {
-            // TODO - here you stop the TCP/UDP communication
-        }
-    }
 
     /**
      * Add a listener for notification of node staring and stopping.

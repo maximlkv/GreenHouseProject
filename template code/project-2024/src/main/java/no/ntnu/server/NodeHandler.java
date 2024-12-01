@@ -1,15 +1,14 @@
-package no.ntnu.connection;
+package no.ntnu.server;
 
 import java.io.IOException;
 import java.net.Socket;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
-import no.ntnu.controlpanel.SensorActuatorNodeInfo;
-import no.ntnu.greenhouse.Actuator;
 import no.ntnu.tools.Logger;
-import org.json.JSONArray;
 import org.json.JSONObject;
 
 /**
@@ -23,6 +22,7 @@ public class NodeHandler {
     //thread pool is used to make sure each node's communication can run concurrently
     private final ExecutorService nodeThreadPool = Executors.newFixedThreadPool(6);
     private final Server server;
+
 
     /**
      * Constructor for node handler class
@@ -47,11 +47,12 @@ public class NodeHandler {
      * takes in sensor/actuator node, creates a NodeConnection object and stores it in a map, with
      * its id being the key
      *
-     * @param sensorNodeID
-     * @param socket
+     * @param sensorNodeID id of the sensor node
+     * @param socket socket of the sensor node
      */
     public void addSensorNode(Integer sensorNodeID, Socket socket) {
         NodeConnection sensorNode = new NodeConnection(socket);
+        sensorNode.setUnpaired(false);
         sensorNodesMap.put(sensorNodeID, sensorNode);
         Logger.info("Added Sensor node to map: " + sensorNodeID);
     }
@@ -81,6 +82,11 @@ public class NodeHandler {
         try {
             String message;
             while ((message = sensorNodeConnection.getSocketReader().readLine()) != null) {
+                synchronized (this) {
+                    if(sensorNodeConnection.isUnpaired()) {
+                        break;
+                    }
+                }
                 Logger.info("Received message from sensor node " + sensorID + ": " + message);
                 //Save as node in the server
                 controlNode.getSocketWriter().println(message);
@@ -103,6 +109,10 @@ public class NodeHandler {
             }
         } catch (IOException e) {
             Logger.error("Error reading actuator command on the server: " + e.getMessage());
+        } finally {
+            Logger.info("Control panel connection lost. Closing this NodeHandler instance and passing sensor" +
+                    "nodes back to server.");
+            closeConnection();
         }
     }
 
@@ -123,10 +133,44 @@ public class NodeHandler {
 
 
     /**
-     * closes connection for all the nodes that are being managed
+     * closes connection of the control node and passes all the connected sensors back to the server,
+     * so they can be paired again
      */
     private void closeConnection() {
-        // TODO -- closing of connection for each NodeConnection
+
+        if (controlNode != null) {
+            controlNode.closeConnection();
+            Logger.info("Closed control node connection");
+        }
+
+        for (Map.Entry<Integer, NodeConnection> entry : sensorNodesMap.entrySet()) {
+            Integer sensorNodeID = entry.getKey();
+            NodeConnection sensorNode = entry.getValue();
+            synchronized (this){
+                sensorNode.setUnpaired(true);
+            }
+
+            server.getSensorNodes().put(sensorNodeID, sensorNode.getSocket());
+        }
+
+    }
+
+    /**
+     * shuts down the thread pool once this node handler instance is no longer needed.
+     * this method has been written by chatgpt
+     */
+    public void stopThreadPool() {
+        nodeThreadPool.shutdown();
+        try {
+            if (!nodeThreadPool.awaitTermination(10, TimeUnit.SECONDS)) {
+                Logger.error("ExecutorService did not terminate in time, forcing shutdown...");
+                nodeThreadPool.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            Logger.error("Shutdown interrupted: " + e.getMessage());
+            nodeThreadPool.shutdownNow();
+        }
+        Logger.info("NodeHandler stopped successfully.");
     }
 
 

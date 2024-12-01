@@ -1,4 +1,4 @@
-package no.ntnu.connection;
+package no.ntnu.server;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -199,7 +199,8 @@ public class Server {
         // ensure that requested sensor/actuator nodes are connected to the server
         for (int id : wantedSensorNodeIDs) {
             if (!sensorNodes.containsKey(id)) {
-                Logger.error("Sensor node with requested id is not connected to server: " + id + ". Closing Control Socket.");
+                Logger.error("Sensor node with requested id is not connected to server or already paired: " + id +
+                        ". Closing Control Socket.");
 
                 closeClientSocket(clientSocket);
                 return;
@@ -237,5 +238,12 @@ public class Server {
         }
     }
 
+    /**
+     * getter for map of unpaired sensor nodes
+     * @return map containing unpaired sensor nodes
+     */
+    public Map<Integer, Socket> getSensorNodes() {
+        return sensorNodes;
+    }
 
 }

@@ -23,4 +23,6 @@ public interface CommunicationChannel {
   boolean open();
 
   void setGuiReady();
+
+  void close();
 }

@@ -55,7 +55,7 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>no.ntnu.run.ControlPanelStarter</mainClass> <!-- Replace with your default main class -->
+                            <mainClass>no.ntnu.controlpanel.ControlPanelStarter</mainClass> <!-- Replace with your default main class -->
                         </manifest>
                     </archive>
                 </configuration>
@@ -67,7 +67,7 @@
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>3.0.0</version>
                 <configuration>
-                    <mainClass>no.ntnu.run.ControlPanelStarter</mainClass> <!-- Replace with your default main class -->
+                    <mainClass>no.ntnu.controlpanel.ControlPanelStarter</mainClass> <!-- Replace with your default main class -->
                 </configuration>
             </plugin>
 
