@@ -137,11 +137,10 @@ Sprint Number: #4
 
 ## Completed Items
 
-- [x]  Refactor communication adding a list of control panels for the connection to server. Owner: Maxim
+- [x]  Overhaul Server and NodeHandler class to be able to handle multiple control panels. Owner: Maxim
 - [x]  Bug: Fix Actuators id (They are sending the wrong id in the communication so are not being updated in the UI). Owner: Sol
-- [x]  Bug: Actuators should receive the message from server and send to Greenhouse. Owner: Maxim
+- [x]  Bugfix: Actuators didn't receive Commands properly. Owner: Maxim
 - [x]  Upload sprints reports to Github. Owner: Sol
-- [x]  Added functionality, that returns sensor nodes to server and makes them available for new connections, when control panel disconnects. Owner: Maxim
 - [x]  Write the communication Protocol. Owner: Maxim
 - [x]  Make video. Owner: Maxim
 
